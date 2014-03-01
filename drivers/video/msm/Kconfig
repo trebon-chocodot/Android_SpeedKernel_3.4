@@ -1010,4 +1010,4 @@ config BACKLIGHT_KTD253
 	help
 	  support for KTD253 backlight IC
 endif
-endif
+
