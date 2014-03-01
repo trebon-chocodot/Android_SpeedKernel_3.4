@@ -1004,7 +1004,10 @@ config FB_MSM_EBI2_PANEL_DETECT
 	---help---
 	  Support for EBI2 panel auto detect
 
-if FB_MSM_MDSS
-	source "drivers/video/msm/mdss/Kconfig"
+config BACKLIGHT_KTD253
+	bool "CONFIG_BACKLIGHT_KTD253"
+	default n
+	help
+	  support for KTD253 backlight IC
 endif
 endif
