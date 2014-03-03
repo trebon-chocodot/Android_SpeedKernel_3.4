@@ -1009,5 +1009,8 @@ config BACKLIGHT_KTD253
 	default n
 	help
 	  support for KTD253 backlight IC
-endif
 
+if FB_MSM_MDSS
+	source "drivers/video/msm/mdss/Kconfig"
+endif
+endif
