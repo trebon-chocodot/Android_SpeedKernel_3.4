@@ -34,12 +34,11 @@ config IMX074
 	depends on MSM_CAMERA
 	---help---
 	SONY 13.5 MP Bayer Sensor
-config OV5640
-	bool "Sensor OV5640 (YUV 5M)"
-	depends on MSM_CAMERA && !MSM_CAMERA_V4L2
+config SENSOR_S5K5CCAF
+	bool "Sensor s5k5cc 1/5 (3M/AF)"
 	default n
 	---help---
-	Omni 5M YUV Sensor
+	  SAMSUNG 3M CMOS Sensor
 
 config OV5647
 	bool "Sensor ov5647 (BAYER 5M)"
@@ -174,13 +173,6 @@ config MSM_CAMERA_FLASH_SC628A
 	  It is a samtech charge pump flash driver and it
 	  supports spotlight and flash light modes with
 	  differrent current levels.
-	  
-config S5K5CCAF
-	bool "Sensor s5k5ccaf (3M)"
-	depends on MSM_CAMERA && !ARCH_MSM8X60 && !MSM_CAMERA_V4L2
-	default y
-	---help---
-	  LSI 3M Sensor with Autofocus
 
 config S5K4ECGX
 	bool "Sensor S5K4ECGX (LSI 5M)"

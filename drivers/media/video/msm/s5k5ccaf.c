@@ -1534,13 +1534,11 @@ static int s5k5ccaf_sensor_probe(const struct msm_camera_sensor_info *info,
 /*	unsigned short read_value;*/
 	unsigned short id = 0;
 
-	int rc = i2c_add_driver(&s5k5ccaf_i2c_driver);
-	if (rc < 0 || s5k5ccaf_client == NULL) {
-		rc = -ENOTSUPP;
-		goto probe_done;
-	}
-	s5k5ccaf_set_power(1);
-/*	usleep(10000);
+  int rc = i2c_add_driver(&s5k5ccaf_i2c_driver);
+  if (rc < 0 || s5k5ccaf_client == NULL) {
+    rc = -ENOTSUPP;
+    goto probe_done;
+  }
 
 	rc = s5k5ccaf_check_sensor_id();
 	if (rc < 0) {
@@ -1571,11 +1569,11 @@ static int __s5k5ccaf_probe(struct platform_device *pdev)
 }
 
 static struct platform_driver msm_camera_driver = {
-	.probe = __s5k5ccaf_probe,
-	.driver = {
-		   .name = "msm_camera_s5k5ccaf",
-		   .owner = THIS_MODULE,
-		   },
+  .probe = __s5k5ccaf_probe,
+  .driver = {
+    .name = "msm_camera_s5k5ccaf",
+    .owner = THIS_MODULE,
+  },
 };
 
 static int __init s5k5ccaf_init(void)
