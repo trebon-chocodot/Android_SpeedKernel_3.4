@@ -1,4 +1,4 @@
-Android_SpeedKernel
+Android_SpeedKernel 3.4.76
 ==============
 Android kernel samsung galaxy Ace Plus (GT-S7500)
 
