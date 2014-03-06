@@ -4,7 +4,7 @@
  * common code to deal with the AUDPP dsp task (audio postproc)
  *
  * Copyright (C) 2008 Google, Inc.
- * Copyright (c) 2009-2010, 2012 Code Aurora Forum. All rights reserved.
+ * Copyright (c) 2009-2010, The Linux Foundation. All rights reserved.
  *
  * This software is licensed under the terms of the GNU General Public
  * License version 2, as published by the Free Software Foundation, and
@@ -34,8 +34,6 @@
 
 #include <mach/qdsp5/qdsp5audppcmdi.h>
 #include <mach/qdsp5/qdsp5audppmsg.h>
-#include <mach/qdsp5/qdsp5audpp.h>
-#include <mach/qdsp5v2/audio_acdbi.h>
 #include <mach/debug_mm.h>
 
 #include "evlog.h"
@@ -87,7 +85,19 @@ static DEFINE_MUTEX(audpp_dec_lock);
 #define AUDPP_CMD_IIR_FLAG_DIS	  0x0000
 #define AUDPP_CMD_IIR_FLAG_ENA	  -1
 
-#define MAX_EVENT_CALLBACK_CLIENTS	2
+#define AUDPP_CMD_VOLUME_PAN		0
+#define AUDPP_CMD_IIR_TUNING_FILTER	1
+#define AUDPP_CMD_EQUALIZER		2
+#define AUDPP_CMD_ADRC			3
+#define AUDPP_CMD_SPECTROGRAM		4
+#define AUDPP_CMD_QCONCERT		5
+#define AUDPP_CMD_SIDECHAIN_TUNING_FILTER	6
+#define AUDPP_CMD_SAMPLING_FREQUENCY	7
+#define AUDPP_CMD_QAFX			8
+#define AUDPP_CMD_QRUMBLE		9
+#define AUDPP_CMD_MBADRC		10
+
+#define MAX_EVENT_CALLBACK_CLIENTS 	1
 
 #define AUDPP_CONCURRENCY_DEFAULT 6	/* All non tunnel mode */
 #define AUDPP_MAX_DECODER_CNT 5
@@ -121,8 +131,6 @@ struct audpp_state {
 	/* flags, 48 bits sample/bytes counter per channel */
 	uint16_t avsync[CH_COUNT * AUDPP_CLNT_MAX_COUNT + 1];
 	struct audpp_event_callback *cb_tbl[MAX_EVENT_CALLBACK_CLIENTS];
-
-	spinlock_t avsync_lock;
 
 	wait_queue_head_t event_wait;
 };
@@ -237,24 +245,13 @@ static void audpp_handle_pcmdmamiss(struct audpp_state *audpp,
 	}
 }
 
-static void audpp_fake_event(struct audpp_state *audpp, int id,
-			     unsigned event, unsigned arg)
-{
-	uint16_t msg[1];
-	msg[0] = arg;
-	audpp->func[id] (audpp->private[id], event, msg);
-}
-
 static void audpp_dsp_event(void *data, unsigned id, size_t len,
 			    void (*getevent) (void *ptr, size_t len))
 {
 	struct audpp_state *audpp = data;
-	unsigned long flags;
 	uint16_t msg[8];
-	int cid = 0;
 
 	if (id == AUDPP_MSG_AVSYNC_MSG) {
-		spin_lock_irqsave(&audpp->avsync_lock, flags);
 		getevent(audpp->avsync, sizeof(audpp->avsync));
 
 		/* mask off any channels we're not watching to avoid
@@ -263,7 +260,6 @@ static void audpp_dsp_event(void *data, unsigned id, size_t len,
 		 * we next read...
 		 */
 		audpp->avsync[0] &= audpp->avsync_mask;
-		spin_unlock_irqrestore(&audpp->avsync_lock, flags);
 		return;
 	}
 
@@ -290,28 +286,13 @@ static void audpp_dsp_event(void *data, unsigned id, size_t len,
 	case AUDPP_MSG_CFG_MSG:
 		if (msg[0] == AUDPP_MSG_ENA_ENA) {
 			MM_INFO("ENABLE\n");
-			if (!audpp->enabled) {
-				audpp->enabled = 1;
-				audpp_broadcast(audpp, id, msg);
-			} else {
-				cid = msg[1];
-				audpp_fake_event(audpp, cid,
-					id, AUDPP_MSG_ENA_ENA);
-			}
-
+			audpp->enabled = 1;
+			audpp_broadcast(audpp, id, msg);
 		} else if (msg[0] == AUDPP_MSG_ENA_DIS) {
-			if (audpp->open_count == 0) {
-				MM_INFO("DISABLE\n");
-				audpp->enabled = 0;
-				wake_up(&audpp->event_wait);
-				audpp_broadcast(audpp, id, msg);
-			} else {
-				cid = msg[1];
-				audpp_fake_event(audpp, cid,
-					id, AUDPP_MSG_ENA_DIS);
-				audpp->func[cid] = NULL;
-				audpp->private[cid] = NULL;
-			}
+			MM_INFO("DISABLE\n");
+			audpp->enabled = 0;
+			wake_up(&audpp->event_wait);
+			audpp_broadcast(audpp, id, msg);
 		} else {
 			MM_ERR("invalid config msg %d\n", msg[0]);
 		}
@@ -325,11 +306,6 @@ static void audpp_dsp_event(void *data, unsigned id, size_t len,
 	case ADSP_MESSAGE_ID:
 		MM_DBG("Received ADSP event: module enable/disable(audpptask)");
 		break;
-	case AUDPP_MSG_FEAT_QUERY_DM_DONE:
-		MM_INFO(" RTC ACK --> %x %x %x\n", msg[0],\
-			msg[1], msg[2]);
-		acdb_rtc_set_err(msg[2]);
-		break;
 	default:
 		MM_ERR("unhandled msg id %x\n", id);
 	}
@@ -339,10 +315,17 @@ static struct msm_adsp_ops adsp_ops = {
 	.event = audpp_dsp_event,
 };
 
+static void audpp_fake_event(struct audpp_state *audpp, int id,
+			     unsigned event, unsigned arg)
+{
+	uint16_t msg[1];
+	msg[0] = arg;
+	audpp->func[id] (audpp->private[id], event, msg);
+}
+
 int audpp_enable(int id, audpp_event_func func, void *private)
 {
 	struct audpp_state *audpp = &the_audpp_state;
-	uint16_t msg[8];
 	int res = 0;
 
 	if (id < -1 || id > 4)
@@ -375,15 +358,12 @@ int audpp_enable(int id, audpp_event_func func, void *private)
 		msm_adsp_enable(audpp->mod);
 		audpp_dsp_config(1);
 	} else {
-		if (audpp->enabled) {
-			msg[0] = AUDPP_MSG_ENA_ENA;
-			msg[1] = id;
-			res = msm_adsp_generate_event(audpp, audpp->mod,
-					 AUDPP_MSG_CFG_MSG, sizeof(msg),
-					 sizeof(uint16_t), (void *)msg);
-			if (res < 0)
-				goto out;
-		}
+		unsigned long flags;
+		local_irq_save(flags);
+		if (audpp->enabled)
+			audpp_fake_event(audpp, id,
+					 AUDPP_MSG_CFG_MSG, AUDPP_MSG_ENA_ENA);
+		local_irq_restore(flags);
 	}
 
 	res = 0;
@@ -396,7 +376,7 @@ EXPORT_SYMBOL(audpp_enable);
 void audpp_disable(int id, void *private)
 {
 	struct audpp_state *audpp = &the_audpp_state;
-	uint16_t msg[8];
+	unsigned long flags;
 	int rc;
 
 	if (id < -1 || id > 4)
@@ -412,13 +392,11 @@ void audpp_disable(int id, void *private)
 	if (audpp->private[id] != private)
 		goto out;
 
-	msg[0] = AUDPP_MSG_ENA_DIS;
-	msg[1] = id;
-	rc = msm_adsp_generate_event(audpp, audpp->mod,
-				 AUDPP_MSG_CFG_MSG, sizeof(msg),
-				 sizeof(uint16_t), (void *)msg);
-	if (rc < 0)
-		goto out;
+	local_irq_save(flags);
+	audpp_fake_event(audpp, id, AUDPP_MSG_CFG_MSG, AUDPP_MSG_ENA_DIS);
+	audpp->func[id] = NULL;
+	audpp->private[id] = NULL;
+	local_irq_restore(flags);
 
 	if (--audpp->open_count == 0) {
 		MM_DBG("disable\n");
@@ -450,13 +428,13 @@ void audpp_avsync(int id, unsigned rate)
 	if (BAD_ID(id))
 		return;
 
-	spin_lock_irqsave(&the_audpp_state.avsync_lock, flags);
+	local_irq_save(flags);
 	if (rate)
 		the_audpp_state.avsync_mask |= (1 << id);
 	else
 		the_audpp_state.avsync_mask &= (~(1 << id));
 	the_audpp_state.avsync[0] &= the_audpp_state.avsync_mask;
-	spin_unlock_irqrestore(&the_audpp_state.avsync_lock, flags);
+	local_irq_restore(flags);
 
 	cmd.cmd_id = AUDPP_CMD_AVSYNC;
 	cmd.object_number = id;
@@ -468,8 +446,7 @@ EXPORT_SYMBOL(audpp_avsync);
 
 unsigned audpp_avsync_sample_count(int id)
 {
-	struct audpp_state *audpp = &the_audpp_state;
-	uint16_t *avsync = audpp->avsync;
+	uint16_t *avsync = the_audpp_state.avsync;
 	unsigned val;
 	unsigned long flags;
 	unsigned mask;
@@ -479,12 +456,12 @@ unsigned audpp_avsync_sample_count(int id)
 
 	mask = 1 << id;
 	id = id * AUDPP_AVSYNC_INFO_SIZE + 2;
-	spin_lock_irqsave(&audpp->avsync_lock, flags);
+	local_irq_save(flags);
 	if (avsync[0] & mask)
 		val = (avsync[id] << 16) | avsync[id + 1];
 	else
 		val = 0;
-	spin_unlock_irqrestore(&audpp->avsync_lock, flags);
+	local_irq_restore(flags);
 
 	return val;
 }
@@ -492,8 +469,7 @@ EXPORT_SYMBOL(audpp_avsync_sample_count);
 
 unsigned audpp_avsync_byte_count(int id)
 {
-	struct audpp_state *audpp = &the_audpp_state;
-	uint16_t *avsync = audpp->avsync;
+	uint16_t *avsync = the_audpp_state.avsync;
 	unsigned val;
 	unsigned long flags;
 	unsigned mask;
@@ -503,12 +479,12 @@ unsigned audpp_avsync_byte_count(int id)
 
 	mask = 1 << id;
 	id = id * AUDPP_AVSYNC_INFO_SIZE + 5;
-	spin_lock_irqsave(&audpp->avsync_lock, flags);
+	local_irq_save(flags);
 	if (avsync[0] & mask)
 		val = (avsync[id] << 16) | avsync[id + 1];
 	else
 		val = 0;
-	spin_unlock_irqrestore(&audpp->avsync_lock, flags);
+	local_irq_restore(flags);
 
 	return val;
 }
@@ -959,8 +935,6 @@ static int audpp_probe(struct platform_device *pdev)
 			audpp->dec_database->num_concurrency_support);
 
 	init_waitqueue_head(&audpp->event_wait);
-
-	spin_lock_init(&audpp->avsync_lock);
 
 	for (idx = 0; idx < audpp->dec_database->num_dec; idx++) {
 		audpp->dec_info_table[idx].codec = -1;

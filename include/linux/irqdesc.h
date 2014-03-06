@@ -11,7 +11,6 @@
 struct irq_affinity_notify;
 struct proc_dir_entry;
 struct timer_rand_state;
-struct module;
 /**
  * struct irq_desc - interrupt descriptor
  * @irq_data:		per irq and chip data passed down to chip functions
@@ -39,7 +38,6 @@ struct module;
  */
 struct irq_desc {
 	struct irq_data		irq_data;
-	struct timer_rand_state *timer_rand_state;
 	unsigned int __percpu	*kstat_irqs;
 	irq_flow_handler_t	handle_irq;
 #ifdef CONFIG_IRQ_PREFLOW_FASTEOI

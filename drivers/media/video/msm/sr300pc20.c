@@ -27,7 +27,6 @@
 #include <media/msm_camera.h>
 #include <mach/gpio.h>
 #include <mach/pmic.h>
-#include <linux/module.h>
 
 #if defined(CONFIG_MACH_JENA_TELSTRA)
 #if (CONFIG_MACH_JENA_HWREV == 0x0) || (CONFIG_MACH_JENA_HWREV == 0x1) || (CONFIG_MACH_JENA_HWREV == 0x2)
@@ -1856,7 +1855,7 @@ static int sr300pc20_sensor_probe(const struct msm_camera_sensor_info *info,
 	s->s_ext_config = sr300pc20_sensor_ext_config;
 
 	s->s_camera_type = BACK_CAMERA_2D;
-	s->s_mount_angle = 90;
+	s->s_mount_angle = 0;
 
 probe_done:
 	pr_info("%s:%d\n", __func__, __LINE__);

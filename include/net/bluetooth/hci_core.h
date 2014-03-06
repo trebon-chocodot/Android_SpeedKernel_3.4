@@ -1,6 +1,7 @@
 /*
    BlueZ - Bluetooth protocol stack for Linux
-   Copyright (c) 2000-2001, 2010-2012, Code Aurora Forum. All rights reserved.
+   Copyright (c) 2000-2001, The Linux Foundation. All rights reserved.
+   Copyright (c) 2010-2013, The Linux Foundation. All rights reserved.
 
    Written 2000,2001 by Maxim Krasnyansky <maxk@qualcomm.com>
 
@@ -26,7 +27,6 @@
 #define __HCI_CORE_H
 
 #include <net/bluetooth/hci.h>
-#include <linux/wakelock.h>
 /* HCI upper protocols */
 #define HCI_PROTO_L2CAP	0
 #define HCI_PROTO_SCO	1
@@ -327,7 +327,6 @@ struct hci_conn {
 
 	struct work_struct work_add;
 	struct work_struct work_del;
-	struct wake_lock idle_lock;
 	struct device	dev;
 	atomic_t	devref;
 
@@ -356,6 +355,7 @@ struct hci_conn {
 	void		*smp_conn;
 	struct timer_list smp_timer;
 	__u8		conn_valid;
+	__u8		hidp_session_valid;
 
 
 	void (*connect_cfm_cb)	(struct hci_conn *conn, u8 status);
@@ -383,7 +383,7 @@ extern rwlock_t hci_cb_list_lock;
 
 /* ----- Inquiry cache ----- */
 #define INQUIRY_CACHE_AGE_MAX   (HZ*30)   /* 30 seconds */
-#define INQUIRY_ENTRY_AGE_MAX   (HZ*60)   /* 60 seconds */
+#define INQUIRY_ENTRY_AGE_MAX   (HZ*60*60)   /* 1 Hour */
 
 #define inquiry_cache_lock(c)		spin_lock(&c->lock)
 #define inquiry_cache_unlock(c)		spin_unlock(&c->lock)

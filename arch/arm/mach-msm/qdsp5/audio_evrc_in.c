@@ -2,7 +2,7 @@
  *
  * evrc audio input device
  *
- * Copyright (c) 2011-2012, Code Aurora Forum. All rights reserved.
+ * Copyright (c) 2011-2012, The Linux Foundation. All rights reserved.
  *
  * This code is based in part on arch/arm/mach-msm/qdsp5v2/audio_evrc_in.c,
  * Copyright (C) 2008 Google, Inc.
@@ -42,6 +42,7 @@
 #include <mach/msm_rpcrouter.h>
 #include <mach/iommu.h>
 #include <mach/iommu_domains.h>
+#include <mach/msm_subsystem_map.h>
 
 #include "audmgr.h"
 
@@ -111,6 +112,7 @@ struct audio_evrc_in {
 	int out_frame_cnt;
 
 	struct msm_adsp_module *audrec;
+	struct msm_adsp_module *audpre;
 
 
 	/* configuration to use on next enable */
@@ -153,8 +155,6 @@ struct audio_evrc_in {
 	struct ion_client *client;
 	struct ion_handle *input_buff_handle;
 	struct ion_handle *output_buff_handle;
-
-	struct audrec_session_info session_info; /*audrec session info*/
 };
 
 struct audio_frame {
@@ -233,32 +233,6 @@ static unsigned convert_samp_index(unsigned index)
 	}
 }
 
-/* ------------------- dsp --------------------- */
-static void audpre_dsp_event(void *data, unsigned id,  void *event_data)
-{
-
-	uint16_t *msg = event_data;
-
-	if (!msg)
-		return;
-
-	switch (id) {
-	case AUDPREPROC_MSG_CMD_CFG_DONE_MSG:
-		MM_DBG("type %d, status_flag %d\n",\
-			msg[0], msg[1]);
-		break;
-	case AUDPREPROC_MSG_ERROR_MSG_ID:
-		MM_INFO("err_index %d\n", msg[0]);
-		break;
-	case ADSP_MESSAGE_ID:
-		MM_DBG("Received ADSP event: module enable(audpreproctask)\n");
-		break;
-	default:
-		MM_ERR("unknown event %d\n", id);
-	}
-}
-
-
 /* must be called with audio->lock held */
 static int audevrc_in_enable(struct audio_evrc_in *audio)
 {
@@ -279,24 +253,16 @@ static int audevrc_in_enable(struct audio_evrc_in *audio)
 		if (rc < 0)
 			return rc;
 
-		if (audpreproc_enable(audio->enc_id,
-				&audpre_dsp_event, audio)) {
-			MM_ERR("msm_adsp_enable(audpreproc) failed\n");
+		if (msm_adsp_enable(audio->audpre)) {
 			audmgr_disable(&audio->audmgr);
+			MM_ERR("msm_adsp_enable(audpre) failed\n");
 			return -ENODEV;
 		}
-
-		/*update aurec session info in audpreproc layer*/
-		audio->session_info.session_id = audio->enc_id;
-		audio->session_info.sampling_freq =
-			convert_samp_index(audio->samp_rate);
-		audpreproc_update_audrec_info(&audio->session_info);
 	}
-
 	if (msm_adsp_enable(audio->audrec)) {
 		if (audio->mode == MSM_AUD_ENC_MODE_TUNNEL) {
-			audpreproc_disable(audio->enc_id, audio);
 			audmgr_disable(&audio->audmgr);
+			msm_adsp_disable(audio->audpre);
 		}
 		MM_ERR("msm_adsp_enable(audrec) failed\n");
 		return -ENODEV;
@@ -319,19 +285,35 @@ static int audevrc_in_disable(struct audio_evrc_in *audio)
 		wake_up(&audio->wait);
 		wait_event_interruptible_timeout(audio->wait_enable,
 				audio->running == 0, 1*HZ);
-		audio->stopped = 1;
-		wake_up(&audio->wait);
 		msm_adsp_disable(audio->audrec);
 		if (audio->mode == MSM_AUD_ENC_MODE_TUNNEL) {
-			audpreproc_disable(audio->enc_id, audio);
-			/*reset the sampling frequency information at
-			audpreproc layer*/
-			audio->session_info.sampling_freq = 0;
-			audpreproc_update_audrec_info(&audio->session_info);
+			msm_adsp_disable(audio->audpre);
 			audmgr_disable(&audio->audmgr);
 		}
 	}
 	return 0;
+}
+
+/* ------------------- dsp --------------------- */
+static void audpre_dsp_event(void *data, unsigned id, size_t len,
+			    void (*getevent)(void *ptr, size_t len))
+{
+	uint16_t msg[2];
+	getevent(msg, sizeof(msg));
+
+	switch (id) {
+	case AUDPREPROC_MSG_CMD_CFG_DONE_MSG:
+		MM_DBG("type %d, status_flag %d\n", msg[0], msg[1]);
+		break;
+	case AUDPREPROC_MSG_ERROR_MSG_ID:
+		MM_ERR("err_index %d\n", msg[0]);
+		break;
+	case ADSP_MESSAGE_ID:
+		MM_DBG("Received ADSP event: module enable(audpreproctask)\n");
+		break;
+	default:
+		MM_ERR("unknown event %d\n", id);
+	}
 }
 
 static void audevrc_in_get_dsp_frames(struct audio_evrc_in *audio)
@@ -574,6 +556,10 @@ static void audrec_dsp_event(void *data, unsigned id, size_t len,
 	}
 }
 
+static struct msm_adsp_ops audpre_evrc_adsp_ops = {
+	.event = audpre_dsp_event,
+};
+
 static struct msm_adsp_ops audrec_evrc_adsp_ops = {
 	.event = audrec_dsp_event,
 };
@@ -673,23 +659,21 @@ static void audevrc_ioport_reset(struct audio_evrc_in *audio)
 	 * sleep and knowing that system is not able
 	 * to process io request at the moment
 	 */
-	wake_up(&audio->wait);
-	mutex_lock(&audio->read_lock);
-	audevrc_in_flush(audio);
-	mutex_unlock(&audio->read_lock);
 	wake_up(&audio->write_wait);
 	mutex_lock(&audio->write_lock);
-	audevrc_out_flush(audio);
+	audevrc_in_flush(audio);
 	mutex_unlock(&audio->write_lock);
+	wake_up(&audio->wait);
+	mutex_lock(&audio->read_lock);
+	audevrc_out_flush(audio);
+	mutex_unlock(&audio->read_lock);
 }
 
 static void audevrc_in_flush(struct audio_evrc_in *audio)
 {
 	int i;
-	unsigned long flags;
 
 	audio->dsp_cnt = 0;
-	spin_lock_irqsave(&audio->dsp_lock, flags);
 	audio->in_head = 0;
 	audio->in_tail = 0;
 	audio->in_count = 0;
@@ -698,7 +682,6 @@ static void audevrc_in_flush(struct audio_evrc_in *audio)
 		audio->in[i].size = 0;
 		audio->in[i].read = 0;
 	}
-	spin_unlock_irqrestore(&audio->dsp_lock, flags);
 	MM_DBG("in_bytes %d\n", atomic_read(&audio->in_bytes));
 	MM_DBG("in_samples %d\n", atomic_read(&audio->in_samples));
 	atomic_set(&audio->in_bytes, 0);
@@ -708,18 +691,15 @@ static void audevrc_in_flush(struct audio_evrc_in *audio)
 static void audevrc_out_flush(struct audio_evrc_in *audio)
 {
 	int i;
-	unsigned long flags;
 
 	audio->out_head = 0;
-	audio->out_count = 0;
-	spin_lock_irqsave(&audio->dsp_lock, flags);
 	audio->out_tail = 0;
+	audio->out_count = 0;
 	for (i = OUT_FRAME_NUM-1; i >= 0; i--) {
 		audio->out[i].size = 0;
 		audio->out[i].read = 0;
 		audio->out[i].used = 0;
 	}
-	spin_unlock_irqrestore(&audio->dsp_lock, flags);
 }
 
 /* ------------------- device --------------------- */
@@ -759,6 +739,7 @@ static long audevrc_in_ioctl(struct file *file,
 	}
 	case AUDIO_STOP: {
 		rc = audevrc_in_disable(audio);
+		audio->stopped = 1;
 		break;
 	}
 	case AUDIO_FLUSH: {
@@ -816,15 +797,13 @@ static long audevrc_in_ioctl(struct file *file,
 		}
 		/* Allow only single frame */
 		if (audio->mode == MSM_AUD_ENC_MODE_TUNNEL) {
-			if (cfg.buffer_size != (FRAME_SIZE - 8)) {
+			if (cfg.buffer_size != (FRAME_SIZE - 8))
 				rc = -EINVAL;
 				break;
-			}
 		} else {
-			if (cfg.buffer_size != (EVRC_FRAME_SIZE + 14)) {
+			if (cfg.buffer_size != (EVRC_FRAME_SIZE + 14))
 				rc = -EINVAL;
 				break;
-			}
 		}
 		audio->buffer_size = cfg.buffer_size;
 		break;
@@ -1020,8 +999,7 @@ static void audrec_pcm_send_data(struct audio_evrc_in *audio, unsigned needed)
 	spin_unlock_irqrestore(&audio->dsp_lock, flags);
 }
 
-static int audevrc_in_fsync(struct file *file, loff_t a, loff_t b,
-	int datasync)
+static int audevrc_in_fsync(struct file *file,	int datasync)
 
 {
 	struct audio_evrc_in *audio = file->private_data;
@@ -1199,8 +1177,12 @@ static int audevrc_in_release(struct inode *inode, struct file *file)
 	audevrc_in_flush(audio);
 	msm_adsp_put(audio->audrec);
 
+	if (audio->mode == MSM_AUD_ENC_MODE_TUNNEL)
+		msm_adsp_put(audio->audpre);
+
 	audpreproc_aenc_free(audio->enc_id);
 	audio->audrec = NULL;
+	audio->audpre = NULL;
 	audio->opened = 0;
 	if ((audio->mode == MSM_AUD_ENC_MODE_NONTUNNEL) && \
 	   (audio->out_data)) {
@@ -1291,6 +1273,16 @@ static int audevrc_in_open(struct inode *inode, struct file *file)
 		goto done;
 	}
 
+	if (audio->mode == MSM_AUD_ENC_MODE_TUNNEL) {
+		rc = msm_adsp_get("AUDPREPROCTASK", &audio->audpre,
+				&audpre_evrc_adsp_ops, audio);
+		if (rc) {
+			msm_adsp_put(audio->audrec);
+			audpreproc_aenc_free(audio->enc_id);
+			goto done;
+		}
+	}
+
 	audio->dsp_cnt = 0;
 	audio->stopped = 0;
 	audio->wflush = 0;
@@ -1342,12 +1334,12 @@ static int audevrc_in_open(struct inode *inode, struct file *file)
 	if (IS_ERR(audio->map_v_read)) {
 		MM_ERR("could not map read buffers,freeing instance 0x%08x\n",
 				(int)audio);
-		rc = -ENOMEM;
+			rc = -ENOMEM;
 		goto output_buff_map_error;
 	}
 	audio->data = audio->map_v_read;
-	MM_DBG("read buf: phy addr 0x%08x kernel addr 0x%08x\n",
-		audio->phys, (int)audio->data);
+		MM_DBG("read buf: phy addr 0x%08x kernel addr 0x%08x\n",
+				audio->phys, (int)audio->data);
 
 	audio->out_data = NULL;
 	if (audio->mode == MSM_AUD_ENC_MODE_NONTUNNEL) {
@@ -1387,7 +1379,7 @@ static int audevrc_in_open(struct inode *inode, struct file *file)
 			handle, ionflag);
 		if (IS_ERR(audio->map_v_write)) {
 			MM_ERR("could not map write buffers\n");
-			rc = -ENOMEM;
+				rc = -ENOMEM;
 			goto input_buff_map_error;
 		}
 		audio->out_data = audio->map_v_write;
@@ -1428,6 +1420,8 @@ output_buff_alloc_error:
 	ion_client_destroy(client);
 client_create_error:
 	msm_adsp_put(audio->audrec);
+	if (audio->mode == MSM_AUD_ENC_MODE_TUNNEL)
+		msm_adsp_put(audio->audpre);
 
 	audpreproc_aenc_free(audio->enc_id);
 	mutex_unlock(&audio->lock);

@@ -4,7 +4,7 @@
  *
  * Copyright (C) 2008 Google, Inc.
  * Copyright (C) 2008 HTC Corporation
- * Copyright (c) 2012 Code Aurora Forum. All rights reserved.
+ * Copyright (c) 2012 The Linux Foundation. All rights reserved.
  *
  * This software is licensed under the terms of the GNU General Public
  * License version 2, as published by the Free Software Foundation, and
@@ -28,20 +28,17 @@
 #include <linux/debugfs.h>
 #include <linux/delay.h>
 #include <linux/wakelock.h>
-#include <linux/pm_qos.h>
 
 #include <linux/msm_audio.h>
 
 #include <asm/atomic.h>
 #include <asm/ioctls.h>
 #include <mach/msm_adsp.h>
-#include <mach/cpuidle.h>
 
 #include "audmgr.h"
 
 #include <mach/qdsp5/qdsp5audppcmdi.h>
 #include <mach/qdsp5/qdsp5audppmsg.h>
-#include <mach/qdsp5/qdsp5audpp.h>
 
 #include <mach/htc_pwrsink.h>
 #include <mach/debug_mm.h>
@@ -64,7 +61,6 @@
 #define SRS_MASK_HP 8
 #define SRS_MASK_P 16
 #define SRS_MASK_HL 32
-
 
 enum {
 	EV_NULL,
@@ -158,7 +154,7 @@ struct audio {
 	int stopped; /* set when stopped, cleared on flush */
 
 	struct wake_lock wakelock;
-	struct pm_qos_request pm_qos_req;
+	struct wake_lock idlelock;
 
 	audpp_cmd_cfg_object_params_volume vol_pan;
 };
@@ -183,7 +179,7 @@ struct audio_copp {
 
 	int qconcert_plus_enable;
 	int qconcert_plus_needs_commit;
-
+	
 	int srs_enable;
 	int srs_needs_commit;
 	int srs_feature_mask;
@@ -207,14 +203,13 @@ static void audio_prevent_sleep(struct audio *audio)
 {
 	MM_DBG("\n"); /* Macro prints the file name and function */
 	wake_lock(&audio->wakelock);
-	pm_qos_update_request(&audio->pm_qos_req,
-			      msm_cpuidle_get_deep_idle_latency());
+	wake_lock(&audio->idlelock);
 }
 
 static void audio_allow_sleep(struct audio *audio)
 {
-	pm_qos_update_request(&audio->pm_qos_req, PM_QOS_DEFAULT_VALUE);
 	wake_unlock(&audio->wakelock);
+	wake_unlock(&audio->idlelock);
 	MM_DBG("\n"); /* Macro prints the file name and function */
 }
 
@@ -222,6 +217,7 @@ static int audio_dsp_out_enable(struct audio *audio, int yes);
 static int audio_dsp_send_buffer(struct audio *audio, unsigned id, unsigned len);
 
 static void audio_dsp_event(void *private, unsigned id, uint16_t *msg);
+
 static int audio_enable_srs_trumedia(struct audio_copp *audio_copp, int enable);
 /* must be called with audio->lock held */
 static int audio_enable(struct audio *audio)
@@ -279,7 +275,6 @@ static int audio_disable(struct audio *audio)
 
 		audpp_disable(-1, audio);
 
-		audio->stopped = 1;
 		wake_up(&audio->wait);
 		audmgr_disable(&audio->audmgr);
 		audio->out_needed = 0;
@@ -584,6 +579,7 @@ static long audio_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		break;
 	case AUDIO_STOP:
 		rc = audio_disable(audio);
+		audio->stopped = 1;
 		break;
 	case AUDIO_FLUSH:
 		if (audio->stopped) {
@@ -597,7 +593,6 @@ static long audio_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			audio_flush(audio);
 			mutex_unlock(&audio->write_lock);
 		}
-		break;
 	case AUDIO_SET_CONFIG: {
 		struct msm_audio_config config;
 		if (copy_from_user(&config, (void*) arg, sizeof(config))) {
@@ -645,7 +640,7 @@ static long audio_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 }
 
 /* Only useful in tunnel-mode */
-static int audio_fsync(struct file *file, loff_t a, loff_t b, int datasync)
+static int audio_fsync(struct file *file,	int datasync)
 {
 	struct audio *audio = file->private_data;
 	int rc = 0;
@@ -1151,8 +1146,7 @@ static int __init audio_init(void)
 	spin_lock_init(&the_audio.dsp_lock);
 	init_waitqueue_head(&the_audio.wait);
 	wake_lock_init(&the_audio.wakelock, WAKE_LOCK_SUSPEND, "audio_pcm");
-	pm_qos_add_request(&the_audio.pm_qos_req, PM_QOS_CPU_DMA_LATENCY,
-				PM_QOS_DEFAULT_VALUE);
+	wake_lock_init(&the_audio.idlelock, WAKE_LOCK_IDLE, "audio_pcm_idle");
 	return (misc_register(&audio_misc) || misc_register(&audpp_misc));
 }
 

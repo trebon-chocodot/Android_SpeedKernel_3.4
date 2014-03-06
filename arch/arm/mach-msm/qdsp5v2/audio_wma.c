@@ -1,4 +1,4 @@
-/* Copyright (c) 2009-2012, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2009-2011, The Linux Foundation. All rights reserved.
  *
  * Based on the mp3 native driver in arch/arm/mach-msm/qdsp5v2/audio_mp3.c
  *
@@ -44,6 +44,7 @@
 #include <mach/msm_adsp.h>
 #include <mach/iommu.h>
 #include <mach/iommu_domains.h>
+#include <mach/msm_subsystem_map.h>
 #include <mach/qdsp5v2/qdsp5audppmsg.h>
 #include <mach/qdsp5v2/qdsp5audplaycmdi.h>
 #include <mach/qdsp5v2/qdsp5audplaymsg.h>
@@ -139,8 +140,8 @@ struct audio {
 	/* data allocated for various buffers */
 	char *data;
 	int32_t phys; /* physical address of write buffer */
-	void *map_v_read;
-	void *map_v_write;
+	struct msm_mapped_buffer *map_v_read;
+	struct msm_mapped_buffer *map_v_write;
 
 	int mfield; /* meta field embedded in data */
 	int rflush; /* Read  flush */
@@ -201,10 +202,9 @@ static void audplay_send_data(struct audio *audio, unsigned needed);
 static void audplay_config_hostpcm(struct audio *audio);
 static void audplay_buffer_refresh(struct audio *audio);
 static void audio_dsp_event(void *private, unsigned id, uint16_t *msg);
-#ifdef CONFIG_HAS_EARLYSUSPEND
 static void audwma_post_event(struct audio *audio, int type,
 		union msm_audio_event_payload payload);
-#endif
+
 /* must be called with audio->lock held */
 static int audio_enable(struct audio *audio)
 {
@@ -1110,7 +1110,7 @@ static long audio_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 					uint8_t index;
 					uint32_t offset = 0;
 					audio->read_data =
-						audio->map_v_read;
+						(char *)audio->map_v_read;
 					audio->buf_refresh = 0;
 					audio->pcm_buf_count =
 					    config.buffer_count;
@@ -1159,7 +1159,7 @@ static long audio_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 }
 
 /* Only useful in tunnel-mode */
-static int audio_fsync(struct file *file, loff_t ppos1, loff_t ppos2, int datasync)
+static int audio_fsync(struct file *file, int datasync)
 {
 	struct audio *audio = file->private_data;
 	struct buffer *frame;
@@ -1507,7 +1507,6 @@ static int audio_release(struct inode *inode, struct file *file)
 	return 0;
 }
 
-#ifdef CONFIG_HAS_EARLYSUSPEND
 static void audwma_post_event(struct audio *audio, int type,
 		union msm_audio_event_payload payload)
 {
@@ -1536,6 +1535,7 @@ static void audwma_post_event(struct audio *audio, int type,
 	wake_up(&audio->event_wait);
 }
 
+#ifdef CONFIG_HAS_EARLYSUSPEND
 static void audwma_suspend(struct early_suspend *h)
 {
 	struct audwma_suspend_ctl *ctl =
@@ -1728,7 +1728,7 @@ static int audio_open(struct inode *inode, struct file *file)
 		rc = -ENOMEM;
 		goto output_buff_map_error;
 	}
-			audio->data = audio->map_v_write;
+	audio->data = (char *)audio->map_v_write;
 	MM_DBG("write buf: phy addr 0x%08x kernel addr 0x%08x\n",
 		audio->phys, (int)audio->data);
 

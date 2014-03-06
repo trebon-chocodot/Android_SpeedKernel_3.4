@@ -1,4 +1,4 @@
-/* Copyright (c) 2011, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2011, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -17,11 +17,6 @@
 #include <linux/io.h>
 #include <media/v4l2-subdev.h>
 
-enum msm_csiphy_state_t {
-	CSIPHY_POWER_UP,
-	CSIPHY_POWER_DOWN,
-};
-
 struct csiphy_device {
 	struct platform_device *pdev;
 	struct v4l2_subdev subdev;
@@ -30,7 +25,6 @@ struct csiphy_device {
 	struct resource *io;
 	void __iomem *base;
 	struct mutex mutex;
-	enum msm_csiphy_state_t csiphy_state;
 
 	struct clk *csiphy_clk[2];
 };

@@ -1,4 +1,4 @@
-/* Copyright (c) 2010-2012, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2010-2011, The Linux Foundation. All rights reserved.
  *
  * sbc/pcm audio input driver
  * Based on the pcm input driver in arch/arm/mach-msm/qdsp5v2/audio_pcm_in.c
@@ -42,6 +42,7 @@
 #include <mach/iommu_domains.h>
 #include <mach/msm_adsp.h>
 #include <mach/msm_memtypes.h>
+#include <mach/msm_subsystem_map.h>
 #include <mach/socinfo.h>
 #include <mach/qdsp5v2/qdsp5audreccmdi.h>
 #include <mach/qdsp5v2/qdsp5audrecmsg.h>
@@ -108,7 +109,7 @@ struct audio_a2dp_in {
 	/* data allocated for various buffers */
 	char *data;
 	dma_addr_t phys;
-	void *msm_map;
+	struct msm_mapped_buffer *msm_map;
 
 	int opened;
 	int enabled;
@@ -880,7 +881,7 @@ static int auda2dp_in_open(struct inode *inode, struct file *file)
 	client = msm_ion_client_create(UINT_MAX, "Audio_a2dp_in_client");
 	if (IS_ERR_OR_NULL(client)) {
 		MM_ERR("Unable to create ION client\n");
-			rc = -ENOMEM;
+		rc = -ENOMEM;
 		goto client_create_error;
 	}
 	audio->client = client;
@@ -892,7 +893,7 @@ static int auda2dp_in_open(struct inode *inode, struct file *file)
 		MM_ERR("Unable to create allocate O/P buffers\n");
 		rc = -ENOMEM;
 		goto output_buff_alloc_error;
-		}
+	}
 
 	audio->output_buff_handle = handle;
 
@@ -999,9 +1000,9 @@ evt_error:
 output_buff_map_error:
 output_buff_get_phys_error:
 output_buff_get_flags_error:
-	 ion_free(client, audio->output_buff_handle);
+	ion_free(client, audio->output_buff_handle);
 output_buff_alloc_error:
-	    ion_client_destroy(client);
+	ion_client_destroy(client);
 client_create_error:
 	msm_adsp_put(audio->audrec);
 	audpreproc_aenc_free(audio->enc_id);

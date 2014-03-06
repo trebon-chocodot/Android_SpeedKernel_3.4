@@ -1,4 +1,4 @@
-/* Copyright (c) 2011-2012, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2011-2012, The Linux Foundation. All rights reserved.
  *
  * Based on videobuf-dma-contig.c,
  * (c) 2008 Magnus Damm
@@ -29,8 +29,8 @@
 #include <media/videobuf2-msm-mem.h>
 #include <media/msm_camera.h>
 #include <mach/memory.h>
+#include <mach/msm_subsystem_map.h>
 #include <media/videobuf2-core.h>
-#include <mach/iommu_domains.h>
 
 #define MAGIC_PMEM 0x0733ac64
 #define MAGIC_CHECK(is, should)               \
@@ -185,7 +185,7 @@ int videobuf2_pmem_contig_user_get(struct videobuf2_contig_pmem *mem,
 	if (mem->phyaddr != 0)
 		return 0;
 #ifdef CONFIG_MSM_MULTIMEDIA_USE_ION
-	mem->ion_handle = ion_import_dma_buf(client, (int)mem->vaddr);
+	mem->ion_handle = ion_import_fd(client, (int)mem->vaddr);
 	if (IS_ERR_OR_NULL(mem->ion_handle)) {
 		pr_err("%s ION import failed\n", __func__);
 		return PTR_ERR(mem->ion_handle);

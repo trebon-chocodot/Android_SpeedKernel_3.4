@@ -1,4 +1,4 @@
-/* Copyright (c) 2011-2012, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2011-2012, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -85,10 +85,5 @@ void diag_read_smd_wcnss_cntl_work_fn(struct work_struct *);
 void diag_smd_cntl_notify(void *ctxt, unsigned event);
 void diag_smd_qdsp_cntl_notify(void *ctxt, unsigned event);
 void diag_smd_wcnss_cntl_notify(void *ctxt, unsigned event);
-void diag_clean_modem_reg_fn(struct work_struct *);
-void diag_clean_lpass_reg_fn(struct work_struct *);
-void diag_clean_wcnss_reg_fn(struct work_struct *);
-void diag_debugfs_init(void);
-void diag_debugfs_cleanup(void);
 
 #endif

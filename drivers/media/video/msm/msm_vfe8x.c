@@ -1,4 +1,4 @@
-/* Copyright (c) 2009, 2012, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2009, 2012, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -16,7 +16,7 @@
 #include <linux/interrupt.h>
 #include <mach/irqs.h>
 #include "msm_vfe8x_proc.h"
-#include <linux/pm_qos.h>
+#include <linux/pm_qos_params.h>
 
 #define ON  1
 #define OFF 0

@@ -3,7 +3,7 @@
  *
  * Copyright (C) 2008 Google, Inc.
  * Copyright (C) 2008 HTC Corporation
- * Copyright (c) 2009-2012, Code Aurora Forum. All rights reserved.
+ * Copyright (c) 2009-2011, The Linux Foundation. All rights reserved.
  *
  * This software is licensed under the terms of the GNU General Public
  * License version 2, as published by the Free Software Foundation, and
@@ -33,6 +33,7 @@
 #include <mach/msm_adsp.h>
 #include <mach/iommu.h>
 #include <mach/iommu_domains.h>
+#include <mach/msm_subsystem_map.h>
 #include <mach/socinfo.h>
 #include <mach/qdsp5v2/qdsp5audreccmdi.h>
 #include <mach/qdsp5v2/qdsp5audrecmsg.h>
@@ -132,8 +133,8 @@ struct audio_in {
 	/* data allocated for various buffers */
 	char *data;
 	dma_addr_t phys;
-	void *map_v_read;
-	void *map_v_write;
+	struct msm_mapped_buffer *map_v_read;
+	struct msm_mapped_buffer *map_v_write;
 
 	int opened;
 	int enabled;
@@ -1137,7 +1138,7 @@ static void audpreproc_pcm_send_data(struct audio_in *audio, unsigned needed)
 }
 
 
-static int audqcelp_in_fsync(struct file *file, loff_t ppos1, loff_t ppos2, int datasync)
+static int audqcelp_in_fsync(struct file *file,	int datasync)
 
 {
 	struct audio_in *audio = file->private_data;
@@ -1403,7 +1404,7 @@ static int audqcelp_in_open(struct inode *inode, struct file *file)
 		rc = -ENOMEM;
 		goto output_buff_map_error;
 	}
-	audio->data = audio->map_v_read;
+	audio->data = (char *)audio->map_v_read;
 
 	MM_DBG("Memory addr = 0x%8x  phy addr = 0x%8x\n",\
 		(int) audio->data, (int) audio->phys);
@@ -1502,7 +1503,7 @@ static int audqcelp_in_open(struct inode *inode, struct file *file)
 		rc = -ENOMEM;
 		goto input_buff_map_error;
 	}
-	audio->out_data = audio->map_v_write;
+	audio->out_data = (char *)audio->map_v_write;
 	MM_DBG("write buf: phy addr 0x%08x kernel addr 0x%08x\n",
 				(unsigned int)addr,
 				(unsigned int)audio->out_data);
@@ -1528,7 +1529,7 @@ static int audqcelp_in_open(struct inode *inode, struct file *file)
 					qcelp_in_listener, (void *) audio);
 	if (rc) {
 		MM_ERR("failed to register device event listener\n");
-		iounmap(audio->map_v_write);
+		msm_subsystem_unmap_buffer(audio->map_v_write);
 		free_contiguous_memory_by_paddr(audio->out_phys);
 		goto evt_error;
 	}

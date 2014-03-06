@@ -1,4 +1,4 @@
-/* Copyright (c) 2009-2012, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2009-2012, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -90,6 +90,7 @@
 #define PLL_PWRDN_B BIT(3)
 #define PD_PLL BIT(1)
 
+static unsigned current_rate;
 static unsigned hdmi_pll_on;
 
 int hdmi_pll_enable(void)
@@ -216,6 +217,11 @@ void hdmi_pll_disable(void)
 	if (!ahb_enabled)
 		writel_relaxed(ahb_en_reg & ~BIT(4), AHB_EN_REG);
 	hdmi_pll_on = 0;
+}
+
+unsigned hdmi_pll_get_rate(void)
+{
+	return current_rate;
 }
 
 int hdmi_pll_set_rate(unsigned rate)
@@ -372,6 +378,7 @@ int hdmi_pll_set_rate(unsigned rate)
 	if (set_power_dwn)
 		hdmi_pll_enable();
 
+	current_rate = rate;
 	if (!ahb_enabled)
 		writel_relaxed(ahb_en_reg & ~BIT(4), AHB_EN_REG);
 

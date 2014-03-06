@@ -64,6 +64,10 @@
 #include <linux/gp2a.h>
 #endif
 
+#ifdef CONFIG_FORCE_FAST_CHARGE
+#include <linux/fastchg.h>
+#endif
+
 #define _CONFIG_MACH_JENA // Temporary flag
 #define _CONFIG_MACH_TREBON // Temporary flag
 

@@ -1,4 +1,4 @@
-/* Copyright (c) 2012, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2012, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -115,7 +115,7 @@ extern int msm_dcvs_scm_set_algo_params(uint32_t core_id,
  *		@param0: Did the core iowait
  *		@param1: unused
  *		@ret0: New clock frequency for the core in KHz
- *		@ret1: New QoS timer value for the core in usec
+ *		@ret1: unused
  *	MSM_DCVS_SCM_QOS_TIMER_EXPIRED
  *		@param0: unused
  *		@param1: unused

@@ -3,7 +3,7 @@
  *
  * Copyright (C) 2008 Google, Inc.
  * Copyright (C) 2008 HTC Corporation
- * Copyright (c) 2009-2012, Code Aurora Forum. All rights reserved.
+ * Copyright (c) 2009-2011, The Linux Foundation. All rights reserved.
  *
  * This software is licensed under the terms of the GNU General Public
  * License version 2, as published by the Free Software Foundation, and
@@ -32,6 +32,7 @@
 
 #include <mach/iommu.h>
 #include <mach/iommu_domains.h>
+#include <mach/msm_subsystem_map.h>
 #include <mach/msm_adsp.h>
 #include <mach/socinfo.h>
 #include <mach/qdsp5v2/qdsp5audreccmdi.h>
@@ -98,7 +99,7 @@ struct audio_in {
 	/* data allocated for various buffers */
 	char *data;
 	dma_addr_t phys;
-	void *map_v_read;
+	struct msm_mapped_buffer *map_v_read;
 
 	int opened;
 	int enabled;
@@ -834,7 +835,7 @@ static int audamrnb_in_open(struct inode *inode, struct file *file)
 		rc = -ENOMEM;
 		goto buff_map_error;
 	}
-	audio->data = audio->map_v_read;
+	audio->data = (char *)audio->map_v_read;
 	MM_DBG("write buf: phy addr 0x%08x kernel addr 0x%08x\n",
 		audio->phys, (int)audio->data);
 

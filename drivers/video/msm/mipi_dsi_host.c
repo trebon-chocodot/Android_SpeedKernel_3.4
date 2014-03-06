@@ -1,5 +1,5 @@
 
-/* Copyright (c) 2008-2012, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2008-2012, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -25,7 +25,6 @@
 #include <linux/uaccess.h>
 #include <linux/clk.h>
 #include <linux/platform_device.h>
-#include <linux/iopoll.h>
 
 #include <asm/system.h>
 #include <asm/mach-types.h>
@@ -965,29 +964,30 @@ void mipi_dsi_controller_cfg(int enable)
 
 	uint32 dsi_ctrl;
 	uint32 status;
-	u32 sleep_us = 1000;
-	u32 timeout_us = 16000;
+	int cnt;
 
-	/* Check for CMD_MODE_DMA_BUSY */
-	if (readl_poll_timeout((MIPI_DSI_BASE + 0x0004),
-			   status,
-			   ((status & 0x02) == 0),
-			       sleep_us, timeout_us))
+	cnt = 16;
+	while (cnt--) {
+		status = MIPI_INP(MIPI_DSI_BASE + 0x0004);
+		status &= 0x02;		/* CMD_MODE_DMA_BUSY */
+		if (status == 0)
+			break;
+		usleep(1000);
+	}
+	if (cnt == 0)
 		pr_info("%s: DSI status=%x failed\n", __func__, status);
 
-	/* Check for x_HS_FIFO_EMPTY */
-	if (readl_poll_timeout((MIPI_DSI_BASE + 0x0008),
-			   status,
-			   ((status & 0x11111000) == 0x11111000),
-			       sleep_us, timeout_us))
+	cnt = 16;
+	while (cnt--) {
+		status = MIPI_INP(MIPI_DSI_BASE + 0x0008);
+		status &= 0x11111000;	/* x_HS_FIFO_EMPTY */
+		if (status == 0x11111000)	/* all empty */
+			break;
+		usleep(1000);
+	}
+
+	if (cnt == 0)
 		pr_info("%s: FIFO status=%x failed\n", __func__, status);
-
-	/* Check for VIDEO_MODE_ENGINE_BUSY */
-	if (readl_poll_timeout((MIPI_DSI_BASE + 0x0004),
-			   status,
-			   ((status & 0x08) == 0),
-			       sleep_us, timeout_us))
-		pr_info("%s: DSI status=%x failed\n", __func__, status);
 
 	dsi_ctrl = MIPI_INP(MIPI_DSI_BASE + 0x0000);
 	if (enable)
@@ -1028,7 +1028,7 @@ void mipi_dsi_mdp_busy_wait(struct msm_fb_data_type *mfd)
 	int need_wait = 0;
 
 	pr_debug("%s: start pid=%d\n",
-				__func__, current->pid);
+			__func__, current->pid);
 	spin_lock_irqsave(&dsi_mdp_lock, flag);
 	if (dsi_mdp_busy == TRUE) {
 		INIT_COMPLETION(dsi_mdp_comp);
@@ -1043,9 +1043,8 @@ void mipi_dsi_mdp_busy_wait(struct msm_fb_data_type *mfd)
 		wait_for_completion(&dsi_mdp_comp);
 	}
 	pr_debug("%s: done pid=%d\n",
-				__func__, current->pid);
+			__func__, current->pid);
 }
-
 
 void mipi_dsi_cmd_mdp_start(void)
 {
@@ -1526,7 +1525,7 @@ void mipi_dsi_cmd_mdp_busy(void)
 	if (status & 0x04) {	/* MDP BUSY */
 		INIT_COMPLETION(dsi_mdp_comp);
 		need_wait = 1;
-		pr_debug("%s: status=%x need_wait\n", __func__, (int)status);
+printk("%s: status=%x need_wait\n",__func__, (int)status);
 		mipi_dsi_enable_irq(DSI_MDP_TERM);
 	}
 	spin_unlock_irqrestore(&dsi_mdp_lock, flags);
@@ -1597,7 +1596,7 @@ void mipi_dsi_cmdlist_commit(int from_mdp)
 		return;
 	}
 
-	pr_debug("%s:  from_mdp=%d pid=%d\n", __func__, from_mdp, current->pid);
+	pr_debug("%s:  from_mdp=%d pid=%d\n",__func__, from_mdp, current->pid);
 
 	if (!from_mdp) { /* from put */
 		/* make sure dsi_cmd_mdp is idle */

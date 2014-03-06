@@ -5,7 +5,7 @@
  * Copyright (C) 2003-2004 Robert Schwebel, Benedikt Spranger
  * Copyright (C) 2003 Al Borchers (alborchers@steinerpoint.com)
  * Copyright (C) 2008 Nokia Corporation
- * Copyright (c) 2010-2012, Code Aurora Forum. All rights reserved.
+ * Copyright (c) 2010-2012, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -907,14 +907,13 @@ static void rmnet_smd_connect_work(struct work_struct *w)
 		 * Register platform driver to be notified in case SMD channels
 		 * later becomes ready to be opened.
 		 */
-		if (!dev->is_pdrv_used) {
-			ret = platform_driver_register(&dev->pdrv);
-			if (ret)
-				ERROR(cdev, "pdrv %s register failed %d\n",
-						dev->pdrv.driver.name, ret);
-			else
-				dev->is_pdrv_used = 1;
-		}
+		ret = platform_driver_register(&dev->pdrv);
+		if (ret)
+			ERROR(cdev, "Platform driver %s register failed %d\n",
+					dev->pdrv.driver.name, ret);
+		else
+			dev->is_pdrv_used = 1;
+
 		return;
 	}
 	wait_event(dev->smd_ctl.wait, test_bit(CH_OPENED,
@@ -957,32 +956,17 @@ static int rmnet_smd_set_alt(struct usb_function *f,
 	struct usb_composite_dev *cdev = dev->cdev;
 	int ret = 0;
 
-	/* Enable epin endpoint */
-	ret = config_ep_by_speed(cdev->gadget, f, dev->epin);
-	if (ret) {
-		dev->epin->desc = NULL;
-		ERROR(cdev, "config_ep_by_speed failed for ep %s, result %d\n",
-			dev->epin->name, ret);
-		return ret;
-	}
-	ret = usb_ep_enable(dev->epin);
+	ret = usb_ep_enable(dev->epin, ep_choose(cdev->gadget,
+				&rmnet_smd_hs_in_desc,
+				&rmnet_smd_fs_in_desc));
 	if (ret) {
 		ERROR(cdev, "can't enable %s, result %d\n",
 					dev->epin->name, ret);
 		return ret;
 	}
-
-	/* Enable epout endpoint */
-	ret = config_ep_by_speed(cdev->gadget, f, dev->epout);
-	if (ret) {
-		dev->epout->desc = NULL;
-		ERROR(cdev, "config_ep_by_speed failed for ep %s, result %d\n",
-					dev->epout->name, ret);
-		usb_ep_disable(dev->epin);
-		return ret;
-	}
-	ret = usb_ep_enable(dev->epout);
-
+	ret = usb_ep_enable(dev->epout, ep_choose(cdev->gadget,
+				&rmnet_smd_hs_out_desc,
+				&rmnet_smd_fs_out_desc));
 	if (ret) {
 		ERROR(cdev, "can't enable %s, result %d\n",
 					dev->epout->name, ret);
@@ -990,17 +974,9 @@ static int rmnet_smd_set_alt(struct usb_function *f,
 		return ret;
 	}
 
-	/* Enable epnotify endpoint */
-	ret = config_ep_by_speed(cdev->gadget, f, dev->epnotify);
-	if (ret) {
-		dev->epnotify->desc = NULL;
-		ERROR(cdev, "config_ep_by_speed failed for ep %s, result %d\n",
-			dev->epnotify->name, ret);
-		usb_ep_disable(dev->epin);
-		usb_ep_disable(dev->epout);
-		return ret;
-	}
-	ret = usb_ep_enable(dev->epnotify);
+	ret = usb_ep_enable(dev->epnotify, ep_choose(cdev->gadget,
+				&rmnet_smd_hs_notify_desc,
+				&rmnet_smd_fs_notify_desc));
 	if (ret) {
 		ERROR(cdev, "can't enable %s, result %d\n",
 					dev->epnotify->name, ret);

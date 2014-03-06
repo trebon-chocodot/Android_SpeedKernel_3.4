@@ -99,7 +99,6 @@ static int gfs2_get_name(struct dentry *parent, char *name,
 	struct gfs2_holder gh;
 	u64 offset = 0;
 	int error;
-	struct file_ra_state f_ra = { .start = 0 };
 
 	if (!dir)
 		return -EINVAL;
@@ -119,7 +118,7 @@ static int gfs2_get_name(struct dentry *parent, char *name,
 	if (error)
 		return error;
 
-	error = gfs2_dir_read(dir, &offset, &gnfd, get_name_filldir, &f_ra);
+	error = gfs2_dir_read(dir, &offset, &gnfd, get_name_filldir);
 
 	gfs2_glock_dq_uninit(&gh);
 
@@ -168,6 +167,8 @@ static struct dentry *gfs2_fh_to_dentry(struct super_block *sb, struct fid *fid,
 	case GFS2_SMALL_FH_SIZE:
 	case GFS2_LARGE_FH_SIZE:
 	case GFS2_OLD_FH_SIZE:
+		if (fh_len < GFS2_SMALL_FH_SIZE)
+			return NULL;
 		this.no_formal_ino = ((u64)be32_to_cpu(fh[0])) << 32;
 		this.no_formal_ino |= be32_to_cpu(fh[1]);
 		this.no_addr = ((u64)be32_to_cpu(fh[2])) << 32;
@@ -187,6 +188,8 @@ static struct dentry *gfs2_fh_to_parent(struct super_block *sb, struct fid *fid,
 	switch (fh_type) {
 	case GFS2_LARGE_FH_SIZE:
 	case GFS2_OLD_FH_SIZE:
+		if (fh_len < GFS2_LARGE_FH_SIZE)
+			return NULL;
 		parent.no_formal_ino = ((u64)be32_to_cpu(fh[4])) << 32;
 		parent.no_formal_ino |= be32_to_cpu(fh[5]);
 		parent.no_addr = ((u64)be32_to_cpu(fh[6])) << 32;

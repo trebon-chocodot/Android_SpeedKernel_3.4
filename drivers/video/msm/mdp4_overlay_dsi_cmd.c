@@ -1,4 +1,4 @@
-/* Copyright (c) 2011-2012, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2011-2012, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -250,7 +250,7 @@ void mdp4_dsi_cmd_pipe_queue(int cndx, struct mdp4_overlay_pipe *pipe)
 
 static void mdp4_dsi_cmd_blt_ov_update(struct mdp4_overlay_pipe *pipe);
 
-int mdp4_dsi_cmd_pipe_commit(int cndx, int wait)
+int mdp4_dsi_cmd_pipe_commit(void)
 {
 	int  i, undx;
 	int mixer = 0;
@@ -294,7 +294,7 @@ int mdp4_dsi_cmd_pipe_commit(int cndx, int wait)
 		/* Blt */
 		if (vctrl->blt_wait)
 			need_dmap_wait = 1;
-		if (vctrl->ov_koff != vctrl->ov_done) {
+		else if (vctrl->ov_koff != vctrl->ov_done) {
 			INIT_COMPLETION(vctrl->ov_comp);
 			need_ov_wait = 1;
 		}
@@ -376,12 +376,6 @@ int mdp4_dsi_cmd_pipe_commit(int cndx, int wait)
 	spin_unlock_irqrestore(&vctrl->spin_lock, flags);
 
 	mdp4_stat.overlay_commit[pipe->mixer_num]++;
-
-	if (wait) {
-		long long tick;
-
-		mdp4_dsi_cmd_wait4vsync(cndx, &tick);
-	}
 
 	return cnt;
 }
@@ -636,7 +630,7 @@ static void clk_ctrl_work(struct work_struct *work)
 	mutex_unlock(&vctrl->update_lock);
 }
 
-static ssize_t vsync_show_event(struct device *dev,
+ssize_t mdp4_dsi_cmd_show_event(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
 	int cndx;
@@ -658,9 +652,12 @@ static ssize_t vsync_show_event(struct device *dev,
 	vctrl->wait_vsync_cnt++;
 	spin_unlock_irqrestore(&vctrl->spin_lock, flags);
 
-	ret = wait_for_completion_interruptible(&vctrl->vsync_comp);
-	if (ret)
-		return ret;
+	ret = wait_for_completion_interruptible_timeout(&vctrl->vsync_comp,
+		msecs_to_jiffies(VSYNC_PERIOD * 4));
+	if (ret <= 0) {
+		vctrl->wait_vsync_cnt = 0;
+		return -EBUSY;
+	}
 
 	spin_lock_irqsave(&vctrl->spin_lock, flags);
 	vsync_tick = ktime_to_ns(vctrl->vsync_time);
@@ -691,7 +688,7 @@ void mdp4_dsi_rdptr_init(int cndx)
 	init_completion(&vctrl->dmap_comp);
 	init_completion(&vctrl->vsync_comp);
 	spin_lock_init(&vctrl->spin_lock);
-	atomic_set(&vctrl->vsync_resume, 1);
+	atomic_set(&vctrl->suspend, 1);
 	INIT_WORK(&vctrl->clk_work, clk_ctrl_work);
 }
 
@@ -972,14 +969,6 @@ void mdp4_dsi_cmd_overlay_blt(struct msm_fb_data_type *mfd,
 	mdp4_dsi_cmd_do_blt(mfd, req->enable);
 }
 
-static DEVICE_ATTR(vsync_event, S_IRUGO, vsync_show_event, NULL);
-static struct attribute *vsync_fs_attrs[] = {
-	&dev_attr_vsync_event.attr,
-	NULL,
-};
-static struct attribute_group vsync_fs_attr_group = {
-	.attrs = vsync_fs_attrs,
-};
 int mdp4_dsi_cmd_on(struct platform_device *pdev)
 {
 	int ret = 0;
@@ -1003,20 +992,6 @@ int mdp4_dsi_cmd_on(struct platform_device *pdev)
 
 	atomic_set(&vctrl->suspend, 0);
 	pr_debug("%s-:\n", __func__);
-
-	if (!vctrl->sysfs_created) {
-		ret = sysfs_create_group(&vctrl->dev->kobj,
-			&vsync_fs_attr_group);
-		if (ret) {
-			pr_err("%s: sysfs group creation failed, ret=%d\n",
-				__func__, ret);
-			return ret;
-		}
-
-		kobject_uevent(&vctrl->dev->kobj, KOBJ_ADD);
-		pr_debug("%s: kobject_uevent(KOBJ_ADD)\n", __func__);
-		vctrl->sysfs_created = 1;
-	}
 
 	return ret;
 }
@@ -1111,7 +1086,6 @@ void mdp4_dsi_cmd_overlay(struct msm_fb_data_type *mfd)
 	struct vsycn_ctrl *vctrl;
 	struct mdp4_overlay_pipe *pipe;
 	unsigned long flags;
-	long long tick;
 
 	vctrl = &vsync_ctrl_db[cndx];
 
@@ -1152,10 +1126,8 @@ void mdp4_dsi_cmd_overlay(struct msm_fb_data_type *mfd)
 	mdp4_overlay_mdp_perf_upd(mfd, 1);
 
 	mutex_lock(&mfd->dma->ov_mutex);
-	mdp4_dsi_cmd_pipe_commit(cndx, 0);
+	mdp4_dsi_cmd_pipe_commit();
 	mutex_unlock(&mfd->dma->ov_mutex);
-
-	mdp4_dsi_cmd_wait4vsync(cndx, &tick);
 
 	mdp4_overlay_mdp_perf_upd(mfd, 0);
 }

@@ -1,10 +1,15 @@
+config MSM_CAMERA_V4L2
+        bool "MSM Camera V4L2 Interface"
+        depends on MSM_CAMERA
+        default n
+        ---help---
+          This flag enables V4L2 interface of MSM
+          camera driver. If enabled, application interacts
+          with /dev/video0 through V4L2 APIs. Otherwise,
+          native APIs are used through /dev/config0, /dev/frame0,
+          and /dev/control0.
+
 comment "Camera Sensor Selection"
-config SR300PC20
-	bool "Sensor sr300pc20 (3M)"
-	depends on MSM_CAMERA && !ARCH_MSM8X60 && !MSM_CAMERA_V4L2
-	default n
-	---help---
-	  Siliconfile 3M Sensor with Autofocus
 config MT9T013
 	bool "Sensor mt9t013 (BAYER 3M)"
 	depends on MSM_CAMERA && !ARCH_MSM8X60 && !ARCH_MSM8960 && !MSM_CAMERA_V4L2
@@ -40,22 +45,9 @@ config OV5640
 	default n
 	---help---
 	Omni 5M YUV Sensor
-
-config OV5647
-	bool "Sensor ov5647 (BAYER 5M)"
-	depends on MSM_CAMERA
-	---help---
-	  OV 5M Bayer Sensor with AutoFocus
-
-config AD5046_ACT
-	bool "Lens actuator ad5046"
-	depends on MSM_CAMERA && OV5647
-	---help---
-	  ad5046 lens actuator driver for ov5647.
-	  Say Y here if this is msm7627A variant platform.
 config WEBCAM_OV7692_QRD
 	bool "Sensor OV7692 QRD(VGA YUV)"
-	depends on MSM_CAMERA && (ARCH_MSM7X27A || ARCH_MSM8X60)
+	depends on MSM_CAMERA && ARCH_MSM7X27A && !MSM_CAMERA_V4L2
 	default n
 	---help---
 	  Omni Vision VGA YUV Sensor for QRD Devices
@@ -80,7 +72,7 @@ config WEBCAM_OV9726
 #	This uses the CSI interface.
 config VX6953
 	bool "Sensor VX6953 (BAYER 5M)"
-	depends on MSM_CAMERA && (ARCH_MSM7X30 || ARCH_MSM8X60) && MSM_CAMERA_V4L2
+	depends on MSM_CAMERA && (ARCH_MSM7X30 || ARCH_MSM8X60) && !MSM_CAMERA_V4L2
 	default y
 	---help---
 	STM 5M Bayer Sensor with EDOF
@@ -181,6 +173,13 @@ config S5K5CCAF
 	default y
 	---help---
 	  LSI 3M Sensor with Autofocus
+	  
+config SR300PC20
+	bool "Sensor sr300pc20 (3M)"
+	depends on MSM_CAMERA && !ARCH_MSM8X60 && !MSM_CAMERA_V4L2
+	default n
+	---help---
+	  Siliconfile 3M Sensor with Autofocus
 
 config S5K4ECGX
 	bool "Sensor S5K4ECGX (LSI 5M)"
@@ -204,15 +203,6 @@ config OV2720
 	bool "Sensor ov2720 (Omnivision 2MP)"
 	depends on MSM_CAMERA
 
-config OV8825
-	bool "Sensor ov8825 (Omnivision 8M)"
-	depends on MSM_CAMERA
-	---help---
-	  Support for OV8825 sensor driver.
-	  It is a Bayer 8MP sensor with auto focus and it supports
-	  two mipi lanes, required for msm8625 platform.
-	  Say Y here if this is msm8625 variant platform.
-
 config VB6801
 	bool "Sensor vb6801"
 	depends on MSM_CAMERA && !ARCH_MSM8X60 && !MSM_CAMERA_V4L2
@@ -232,18 +222,6 @@ config MSM_CAMERA_SENSOR
 
 config MSM_ACTUATOR
 	bool "Qualcomm MSM actuator support"
-	depends on MSM_CAMERA
-
-config MSM_EEPROM
-	bool "Qualcomm MSM EEPROM support"
-	depends on MSM_CAMERA
-
-config IMX074_EEPROM
-	bool "IMX074 EEPROM support"
-	depends on MSM_CAMERA
-
-config IMX091_EEPROM
-	bool "IMX091 EEPROM support"
 	depends on MSM_CAMERA
 
 config MSM_GEMINI
@@ -280,13 +258,6 @@ config S5K3L1YX
 		snapshot config = 4000 * 3000 at 20 fps,
 		hfr video at 60, 90 and 120 fps.
 
-config IMX091
-        bool "Sensor imx091 (Sony 13MP)"
-        depends on MSM_CAMERA
-	---help---
-	  Sony 13MP sensor back camera that uses 4 mipi lanes,
-	  runs at 30 fps preview and 14 fps snapshot
-
 config MSM_V4L2_VIDEO_OVERLAY_DEVICE
 	tristate "Qualcomm MSM V4l2 video overlay device"
 	---help---
@@ -299,4 +270,4 @@ config OV7692
 	bool "Sensor OV7692 (VGA YUV)"
 	depends on MSM_CAMERA
 	---help---
-	  Omni Vision VGA YUV Sensor
+		Omni Vision VGA YUV Sensor.

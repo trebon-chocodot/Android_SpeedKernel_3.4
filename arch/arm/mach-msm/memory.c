@@ -1,7 +1,7 @@
 /* arch/arm/mach-msm/memory.c
  *
  * Copyright (C) 2007 Google, Inc.
- * Copyright (c) 2009-2012, Code Aurora Forum. All rights reserved.
+ * Copyright (c) 2009-2012, The Linux Foundation. All rights reserved.
  *
  * This software is licensed under the terms of the GNU General Public
  * License version 2, as published by the Free Software Foundation, and
@@ -36,10 +36,6 @@
 #include <linux/android_pmem.h>
 #include <mach/msm_iomap.h>
 #include <mach/socinfo.h>
-#include <linux/sched.h>
-
-/* fixme */
-#include <asm/tlbflush.h>
 #include <../../mm/mm.h>
 #include <linux/fmem.h>
 
@@ -112,7 +108,7 @@ void invalidate_caches(unsigned long vstart,
 	outer_inv_range(pstart, pstart + length);
 }
 
-void * __init alloc_bootmem_aligned(unsigned long size, unsigned long alignment)
+void *alloc_bootmem_aligned(unsigned long size, unsigned long alignment)
 {
 	void *unused_addr = NULL;
 	unsigned long addr, tmp_size, unused_size;
@@ -283,8 +279,6 @@ static void __init reserve_memory_for_mempools(void)
 			if (size >= mt->size) {
 				size = stable_size(mb,
 					reserve_info->low_unstable_address);
-				if (!size)
-					continue;
 				/* mt->size may be larger than size, all this
 				 * means is that we are carving the memory pool
 				 * out of multiple contiguous memory banks.
@@ -296,6 +290,27 @@ static void __init reserve_memory_for_mempools(void)
 			}
 		}
 	}
+}
+
+unsigned long __init reserve_memory_for_fmem(unsigned long fmem_size, 
+						unsigned long align)
+{
+	struct membank *mb;
+	int ret;
+	unsigned long fmem_phys;
+
+	if (!fmem_size)
+		return 0;
+
+	mb = &meminfo.bank[meminfo.nr_banks - 1];
+	
+	fmem_phys = mb->start + (mb->size - fmem_size);
+	fmem_phys = ALIGN(fmem_phys-align+1, align);
+	ret = memblock_remove(fmem_phys, fmem_size);
+	BUG_ON(ret);
+
+	pr_info("fmem start %lx size %lx\n", fmem_phys, fmem_size);
+	return fmem_phys;
 }
 
 static void __init initialize_mempools(void)
@@ -315,8 +330,6 @@ static void __init initialize_mempools(void)
 	}
 }
 
-#define  MAX_FIXED_AREA_SIZE 0x11000000
-
 void __init msm_reserve(void)
 {
 	unsigned long msm_fixed_area_size;
@@ -328,10 +341,7 @@ void __init msm_reserve(void)
 	msm_fixed_area_size = reserve_info->fixed_area_size;
 	msm_fixed_area_start = reserve_info->fixed_area_start;
 	if (msm_fixed_area_size)
-		if (msm_fixed_area_start > reserve_info->low_unstable_address
-			- MAX_FIXED_AREA_SIZE)
-			reserve_info->low_unstable_address =
-			msm_fixed_area_start;
+		reserve_info->low_unstable_address = msm_fixed_area_start;
 
 	calculate_reserve_limits();
 	adjust_reserve_sizes();
@@ -438,15 +448,4 @@ int request_fmem_c_region(void *unused)
 int release_fmem_c_region(void *unused)
 {
 	return fmem_set_state(FMEM_T_STATE);
-}
-
-unsigned long get_ddr_size(void)
-{
-	unsigned int i;
-	unsigned long ret = 0;
-
-	for (i = 0; i < meminfo.nr_banks; i++)
-		ret += meminfo.bank[i].size;
-
-	return ret;
 }

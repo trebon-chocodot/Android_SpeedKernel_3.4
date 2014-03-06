@@ -33,6 +33,7 @@
 
 #include <mach/iommu.h>
 #include <mach/iommu_domains.h>
+#include <mach/msm_subsystem_map.h>
 
 #include <mach/msm_adsp.h>
 #include <mach/socinfo.h>
@@ -112,7 +113,7 @@ struct audio_in {
 	/* data allocated for various buffers */
 	char *data;
 	dma_addr_t phys;
-	void *map_v_read;
+	struct msm_mapped_buffer *map_v_read;
 
 	int opened;
 	int enabled;
@@ -873,7 +874,7 @@ static int audpcm_in_open(struct inode *inode, struct file *file)
 	client = msm_ion_client_create(UINT_MAX, "Audio_PCM_in_client");
 	if (IS_ERR_OR_NULL(client)) {
 		MM_ERR("Unable to create ION client\n");
-			rc = -ENOMEM;
+		rc = -ENOMEM;
 		goto client_create_error;
 	}
 	audio->client = client;

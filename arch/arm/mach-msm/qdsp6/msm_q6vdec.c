@@ -1,4 +1,4 @@
-/* Copyright (c) 2008-2010, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2008-2010, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -30,12 +30,9 @@
 #include <linux/spinlock.h>
 #include <linux/uaccess.h>
 #include <linux/wakelock.h>
-#include <linux/pm_qos.h>
 
 #include <linux/android_pmem.h>
 #include <linux/msm_q6vdec.h>
-
-#include <mach/cpuidle.h>
 
 #include "dal.h"
 
@@ -260,14 +257,13 @@ static DEFINE_MUTEX(vdec_rm_lock);
 
 static int idlecount;
 static struct wake_lock wakelock;
-static struct pm_qos_request pm_qos_req;
+static struct wake_lock idlelock;
 
 static void prevent_sleep(void)
 {
 	mutex_lock(&idlecount_lock);
 	if (++idlecount == 1) {
-		pm_qos_update_request(&pm_qos_req,
-				      msm_cpuidle_get_deep_idle_latency());
+		wake_lock(&idlelock);
 		wake_lock(&wakelock);
 	}
 	mutex_unlock(&idlecount_lock);
@@ -277,8 +273,8 @@ static void allow_sleep(void)
 {
 	mutex_lock(&idlecount_lock);
 	if (--idlecount == 0) {
+		wake_unlock(&idlelock);
 		wake_unlock(&wakelock);
-		pm_qos_update_request(&pm_qos_req, PM_QOS_DEFAULT_VALUE);
 	}
 	mutex_unlock(&idlecount_lock);
 }
@@ -1448,8 +1444,7 @@ static int __init vdec_init(void)
 	struct device *class_dev;
 	int rc = 0;
 
-	pm_qos_add_request(&pm_qos_req, PM_QOS_CPU_DMA_LATENCY,
-				PM_QOS_DEFAULT_VALUE);
+	wake_lock_init(&idlelock, WAKE_LOCK_IDLE, "vdec_idle");
 	wake_lock_init(&wakelock, WAKE_LOCK_SUSPEND, "vdec_suspend");
 
 	rc = alloc_chrdev_region(&vdec_device_no, 0, 1, "vdec");

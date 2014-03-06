@@ -46,9 +46,9 @@
 #include <mach/msm_adsp.h>
 #include <mach/iommu.h>
 #include <mach/iommu_domains.h>
+#include <mach/msm_subsystem_map.h>
 #include <mach/qdsp5/qdsp5audppcmdi.h>
 #include <mach/qdsp5/qdsp5audppmsg.h>
-#include <mach/qdsp5/qdsp5audpp.h>
 #include <mach/qdsp5/qdsp5audplaycmdi.h>
 #include <mach/qdsp5/qdsp5audplaymsg.h>
 #include <mach/qdsp5/qdsp5rmtcmdi.h>
@@ -555,9 +555,7 @@ static void audpcm_async_flush(struct audio *audio)
 	struct audpcm_buffer_node *buf_node;
 	struct list_head *ptr, *next;
 	union msm_audio_event_payload payload;
-	unsigned long flags;
 
-	spin_lock_irqsave(&audio->dsp_lock, flags);
 	MM_DBG("\n"); /* Macro prints the file name and function */
 	list_for_each_safe(ptr, next, &audio->out_queue) {
 		buf_node = list_entry(ptr, struct audpcm_buffer_node, list);
@@ -570,7 +568,6 @@ static void audpcm_async_flush(struct audio *audio)
 	audio->drv_status &= ~ADRV_STATUS_OBUF_GIVEN;
 	audio->out_needed = 0;
 	atomic_set(&audio->out_bytes, 0);
-	spin_unlock_irqrestore(&audio->dsp_lock, flags);
 }
 static void audio_ioport_reset(struct audio *audio)
 {
@@ -731,7 +728,7 @@ static int audlpa_ion_add(struct audio *audio,
 		rc = -ENOMEM;
 		goto end;
 	}
-	handle = ion_import_dma_buf(audio->client, info->fd);
+	handle = ion_import_fd(audio->client, info->fd);
 	if (IS_ERR_OR_NULL(handle)) {
 		pr_err("%s: could not get handle of the given fd\n", __func__);
 		goto import_error;

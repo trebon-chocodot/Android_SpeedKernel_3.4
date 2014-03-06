@@ -11,7 +11,6 @@
 #include <linux/init.h>
 #include <linux/skbuff.h>
 #include <linux/bitops.h>
-#include <linux/export.h>
 #include <net/sock.h>		/* for sock_no_* */
 
 #include "resources.h"		/* devs and vccs */
@@ -95,6 +94,7 @@ static int pvc_getname(struct socket *sock, struct sockaddr *sockaddr,
 		return -ENOTCONN;
 	*sockaddr_len = sizeof(struct sockaddr_atmpvc);
 	addr = (struct sockaddr_atmpvc *)sockaddr;
+	memset(addr, 0, sizeof(*addr));
 	addr->sap_family = AF_ATMPVC;
 	addr->sap_addr.itf = vcc->dev->number;
 	addr->sap_addr.vpi = vcc->vpi;

@@ -1,4 +1,4 @@
-/* Copyright (c) 2008-2009, 2012 Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2008-2009, 2012 The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -50,6 +50,12 @@ extern uint32 mdp_intr_mask;
 
 int first_pixel_start_x;
 int first_pixel_start_y;
+
+#if defined(CONFIG_MACH_JENA)
+extern unsigned long mdp_timer_duration;
+/* Defined in mdp.c to indicate support appboot logo display*/
+extern boolean mdp_continues_display;
+#endif
 
 static ssize_t vsync_show_event(struct device *dev,
 		struct device_attribute *attr, char *buf)
@@ -120,7 +126,6 @@ int mdp_lcdc_on(struct platform_device *pdev)
 	uint32 timer_base = LCDC_BASE;
 	uint32 block = MDP_DMA2_BLOCK;
 	int ret;
-	uint32_t mask, curr;
 
 	mfd = (struct msm_fb_data_type *)platform_get_drvdata(pdev);
 
@@ -143,7 +148,11 @@ int mdp_lcdc_on(struct platform_device *pdev)
 
 	buf += calc_fb_offset(mfd, fbi, bpp);
 
+#if defined(CONFIG_MACH_JENA)
+	dma2_cfg_reg = DMA_PACK_ALIGN_LSB | DMA_DITHER_EN | DMA_OUT_SEL_LCDC;
+#else
 	dma2_cfg_reg = DMA_PACK_ALIGN_LSB | DMA_OUT_SEL_LCDC;
+#endif
 
 	if (mfd->fb_imgType == MDP_BGR_565)
 		dma2_cfg_reg |= DMA_PACK_PATTERN_BGR;
@@ -200,9 +209,6 @@ int mdp_lcdc_on(struct platform_device *pdev)
 	/* x/y coordinate = always 0 for lcdc */
 	MDP_OUTP(MDP_BASE + dma_base + 0x10, 0);
 	/* dma config */
-	curr = inpdw(MDP_BASE + DMA_P_BASE);
-	mask = 0x0FFFFFFF;
-	dma2_cfg_reg = (dma2_cfg_reg & mask) | (curr & ~mask);
 	MDP_OUTP(MDP_BASE + dma_base, dma2_cfg_reg);
 
 	/*
@@ -278,12 +284,6 @@ int mdp_lcdc_on(struct platform_device *pdev)
 	ctrl_polarity =
 	    (data_en_polarity << 2) | (vsync_polarity << 1) | (hsync_polarity);
 
-	if (!(mfd->cont_splash_done)) {
-		mdp_pipe_ctrl(MDP_CMD_BLOCK,
-			MDP_BLOCK_POWER_OFF, FALSE);
-		MDP_OUTP(MDP_BASE + timer_base, 0);
-	}
-
 	MDP_OUTP(MDP_BASE + timer_base + 0x4, hsync_ctrl);
 	MDP_OUTP(MDP_BASE + timer_base + 0x8, vsync_period);
 	MDP_OUTP(MDP_BASE + timer_base + 0xc, vsync_pulse_width * hsync_period);
@@ -334,6 +334,12 @@ int mdp_lcdc_on(struct platform_device *pdev)
 		vsync_cntrl.sysfs_created = 1;
 	}
 
+#if defined(CONFIG_MACH_JENA)
+if (mdp_continues_display) {
+	mdp_continues_display = FALSE;
+	mdp_timer_duration = (HZ);
+}
+#endif
 	return ret;
 }
 

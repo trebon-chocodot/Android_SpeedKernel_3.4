@@ -1,4 +1,4 @@
-/* Copyright (c) 2010-2012, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2010-2011, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -15,7 +15,6 @@
 #include "vcd_ddl_metadata.h"
 #include "vcd_ddl_shared_mem.h"
 #include "vcd_core.h"
-#include "vcd_res_tracker_api.h"
 
 #if defined(PIX_CACHE_DISABLE)
 #define DDL_PIX_CACHE_ENABLE  false
@@ -109,40 +108,24 @@ void ddl_vidc_channel_set(struct ddl_client_context *ddl)
 		dec_pix_cache = VIDC_1080P_DECODE_PCACHE_DISABLE;
 	const enum vidc_1080p_encode_p_cache_enable
 		enc_pix_cache = VIDC_1080P_ENCODE_PCACHE_ENABLE;
-	u32 pix_cache_ctrl, ctxt_mem_offset, ctxt_mem_size, arg1 = 0;
-	u8 *hw_ctxt = NULL;
-	struct ion_handle *alloc_handle;
+	u32 pix_cache_ctrl, ctxt_mem_offset, ctxt_mem_size;
 
 	if (ddl->decoding) {
-		ddl_set_core_start_time(__func__, DEC_OP_TIME);
+		if (vidc_msg_timing)
+			ddl_set_core_start_time(__func__, DEC_OP_TIME);
 		vcd_codec = &(ddl->codec_data.decoder.codec.codec);
 		pix_cache_ctrl = (u32)dec_pix_cache;
 		ctxt_mem_offset = DDL_ADDR_OFFSET(ddl_context->dram_base_a,
 		ddl->codec_data.decoder.hw_bufs.context) >> 11;
-		hw_ctxt =
-		ddl->codec_data.decoder.hw_bufs.context.align_virtual_addr;
 		ctxt_mem_size =
 			ddl->codec_data.decoder.hw_bufs.context.buffer_size;
-		alloc_handle =
-			ddl->codec_data.decoder.hw_bufs.context.alloc_handle;
 	} else {
 		vcd_codec = &(ddl->codec_data.encoder.codec.codec);
 		pix_cache_ctrl = (u32)enc_pix_cache;
 		ctxt_mem_offset = DDL_ADDR_OFFSET(ddl_context->dram_base_a,
 			ddl->codec_data.encoder.hw_bufs.context) >> 11;
-		hw_ctxt =
-		ddl->codec_data.encoder.hw_bufs.context.align_virtual_addr;
 		ctxt_mem_size =
 			ddl->codec_data.encoder.hw_bufs.context.buffer_size;
-		alloc_handle =
-			ddl->codec_data.encoder.hw_bufs.context.alloc_handle;
-	}
-	if (!res_trk_check_for_sec_session() && hw_ctxt) {
-		memset(hw_ctxt, 0, ctxt_mem_size);
-		msm_ion_do_cache_op(ddl_context->video_ion_client,
-		alloc_handle, hw_ctxt, ctxt_mem_size,
-		ION_IOC_CLEAN_INV_CACHES);
-		arg1 = 1 << 29;
 	}
 	switch (*vcd_codec) {
 	default:
@@ -202,9 +185,8 @@ void ddl_vidc_channel_set(struct ddl_client_context *ddl)
 	DDL_MSG_LOW("ddl_state_transition: %s ~~> DDL_CLIENT_WAIT_FOR_CHDONE",
 	ddl_get_state_string(ddl->client_state));
 	ddl->client_state = DDL_CLIENT_WAIT_FOR_CHDONE;
-	arg1 |= (u32)codec;
 	vidc_1080p_set_host2risc_cmd(VIDC_1080P_HOST2RISC_CMD_OPEN_CH,
-		arg1, pix_cache_ctrl, ctxt_mem_offset,
+		(u32)codec, pix_cache_ctrl, ctxt_mem_offset,
 		ctxt_mem_size);
 }
 
@@ -215,17 +197,11 @@ void ddl_vidc_decode_init_codec(struct ddl_client_context *ddl)
 	struct vidc_1080p_dec_seq_start_param seq_start_param;
 	u32 seq_size;
 
-	ddl_set_core_start_time(__func__, DEC_OP_TIME);
+	if (vidc_msg_timing)
+		ddl_set_core_start_time(__func__, DEC_OP_TIME);
 	vidc_1080p_set_decode_mpeg4_pp_filter(decoder->post_filter.post_filter);
 	vidc_sm_set_concealment_color(&ddl->shared_mem[ddl->command_channel],
 		DDL_CONCEALMENT_Y_COLOR, DDL_CONCEALMENT_C_COLOR);
-
-	vidc_sm_set_error_concealment_config(
-		&ddl->shared_mem[ddl->command_channel],
-		VIDC_SM_ERR_CONCEALMENT_INTER_SLICE_MB_COPY,
-		VIDC_SM_ERR_CONCEALMENT_INTRA_SLICE_COLOR_CONCEALMENT,
-		VIDC_SM_ERR_CONCEALMENT_ENABLE);
-
 	ddl_vidc_metadata_enable(ddl);
 	vidc_sm_set_metadata_start_address(&ddl->shared_mem
 		[ddl->command_channel],
@@ -978,7 +954,6 @@ void ddl_vidc_encode_slice_batch_run(struct ddl_client_context *ddl)
 		ddl_update_core_start_time(__func__, ENC_SLICE_OP_TIME);
 		ddl_set_core_start_time(__func__, ENC_OP_TIME);
 	}
-	encoder->num_slices_comp = 0;
 	ddl_vidc_encode_set_batch_slice_info(ddl);
 	ddl_context->vidc_encode_slice_batch_start[ddl->command_channel] (
 			&enc_param);
@@ -1012,7 +987,8 @@ u32 ddl_vidc_decode_set_buffers(struct ddl_client_context *ddl)
 #ifdef DDL_BUF_LOG
 	ddl_list_buffers(ddl);
 #endif
-	ddl_set_core_start_time(__func__, DEC_OP_TIME);
+	if (vidc_msg_timing)
+		ddl_set_core_start_time(__func__, DEC_OP_TIME);
 	ddl_decoder_dpb_transact(decoder, NULL, DDL_DPB_OP_INIT);
 	if (ddl_decoder_dpb_init(ddl) == VCD_ERR_FAIL)
 		return VCD_ERR_FAIL;
@@ -1059,8 +1035,10 @@ void ddl_vidc_decode_frame_run(struct ddl_client_context *ddl)
 	struct ddl_mask *dpb_mask = &ddl->codec_data.decoder.dpb_mask;
 	struct vidc_1080p_dec_frame_start_param dec_param;
 	u32 dpb_addr_y[32], index;
-	ddl_set_core_start_time(__func__, DEC_OP_TIME);
-	ddl_set_core_start_time(__func__, DEC_IP_TIME);
+	if (vidc_msg_timing) {
+		ddl_set_core_start_time(__func__, DEC_OP_TIME);
+		ddl_set_core_start_time(__func__, DEC_IP_TIME);
+	}
 	if ((!bit_stream->data_len) || (!bit_stream->physical)) {
 		ddl_vidc_decode_eos_run(ddl);
 		return;
@@ -1096,7 +1074,6 @@ void ddl_vidc_decode_frame_run(struct ddl_client_context *ddl)
 		decoder->flush_pending = false;
 	} else
 		dec_param.dpb_flush = false;
-	ddl_set_vidc_timeout(ddl);
 	vidc_sm_set_frame_tag(&ddl->shared_mem[ddl->command_channel],
 		bit_stream->ip_frm_tag);
 	if (ddl_context->pix_cache_enable) {
@@ -1184,19 +1161,4 @@ void ddl_vidc_encode_eos_run(struct ddl_client_context *ddl)
 				ddl->input_frame.vcd_frm.ip_frm_tag);
 	ddl_context->vidc_encode_frame_start[ddl->command_channel](
 						&enc_param);
-}
-
-int ddl_vidc_decode_get_avg_time(struct ddl_client_context *ddl)
-{
-	int avg_time = 0;
-	struct ddl_decoder_data *decoder = &(ddl->codec_data.decoder);
-	avg_time = decoder->avg_dec_time;
-	return avg_time;
-}
-
-void ddl_vidc_decode_reset_avg_time(struct ddl_client_context *ddl)
-{
-	struct ddl_decoder_data *decoder = &(ddl->codec_data.decoder);
-	decoder->avg_dec_time = 0;
-	decoder->dec_time_sum = 0;
 }
