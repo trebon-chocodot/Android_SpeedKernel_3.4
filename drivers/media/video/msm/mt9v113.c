@@ -31,8 +31,8 @@
 #include <linux/io.h>
 
 /*#include "msm_camera_gpio.h"*/
-#if (CONFIG_MACH_JENA_HWREV == 0x0)
-#include "mt9v113_jena.h"
+#if (CONFIG_MACH_TREBON_HWREV == 0x0)
+#include "mt9v113_trebon.h"
 #else
 #include "mt9v113.h"
 #endif
