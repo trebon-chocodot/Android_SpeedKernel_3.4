@@ -46,9 +46,9 @@
 #include <mach/msm_adsp.h>
 #include <mach/iommu.h>
 #include <mach/iommu_domains.h>
-#include <mach/msm_subsystem_map.h>
 #include <mach/qdsp5/qdsp5audppcmdi.h>
 #include <mach/qdsp5/qdsp5audppmsg.h>
+#include <mach/qdsp5/qdsp5audpp.h>
 #include <mach/qdsp5/qdsp5audplaycmdi.h>
 #include <mach/qdsp5/qdsp5audplaymsg.h>
 #include <mach/qdsp5/qdsp5rmtcmdi.h>
@@ -299,9 +299,10 @@ static int audio_enable(struct audio *audio)
 	cfg.snd_method = RPC_SND_METHOD_MIDI;
 
 	rc = audmgr_enable(&audio->audmgr, &cfg);
-	if (rc < 0)
+	if (rc < 0) {
+		msm_adsp_dump(audio->audplay);
 		return rc;
-
+	}
 	if (msm_adsp_enable(audio->audplay)) {
 		MM_ERR("msm_adsp_enable(audplay) failed\n");
 		audmgr_disable(&audio->audmgr);
@@ -337,10 +338,13 @@ static int audio_disable(struct audio *audio)
 			rc = -EFAULT;
 		else
 			rc = 0;
+		audio->stopped = 1;
 		wake_up(&audio->write_wait);
 		msm_adsp_disable(audio->audplay);
 		audpp_disable(audio->dec_id, audio);
-		audmgr_disable(&audio->audmgr);
+		rc = audmgr_disable(&audio->audmgr);
+		if (rc < 0)
+			msm_adsp_dump(audio->audplay);
 		audio->out_needed = 0;
 		rmt_put_resource(audio);
 		audio->rmt_resource_released = 1;
@@ -640,12 +644,16 @@ static void audpcm_async_flush(struct audio *audio)
 
 static void audio_flush(struct audio *audio)
 {
+	unsigned long flags;
+
+	spin_lock_irqsave(&audio->dsp_lock, flags);
 	audio->out[0].used = 0;
 	audio->out[1].used = 0;
 	audio->out_head = 0;
 	audio->out_tail = 0;
 	audio->reserved = 0;
 	audio->out_needed = 0;
+	spin_unlock_irqrestore(&audio->dsp_lock, flags);
 	atomic_set(&audio->out_bytes, 0);
 }
 
@@ -808,7 +816,7 @@ static int audpcm_ion_add(struct audio *audio,
 		rc = -ENOMEM;
 		goto end;
 	}
-	handle = ion_import_fd(audio->client, info->fd);
+	handle = ion_import_dma_buf(audio->client, info->fd);
 	if (IS_ERR_OR_NULL(handle)) {
 		pr_err("%s: could not get handle of the given fd\n", __func__);
 		goto import_error;
@@ -1056,7 +1064,6 @@ static long audio_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 	case AUDIO_STOP:
 		MM_DBG("AUDIO_STOP\n");
 		rc = audio_disable(audio);
-		audio->stopped = 1;
 		audio_ioport_reset(audio);
 		audio->stopped = 0;
 		break;
@@ -1270,7 +1277,7 @@ done:
 	return rc;
 }
 
-int audpcm_fsync(struct file *file, int datasync)
+int audpcm_fsync(struct file *file, loff_t a, loff_t b, int datasync)
 {
 	struct audio *audio = file->private_data;
 
@@ -1575,7 +1582,7 @@ static int audio_open(struct inode *inode, struct file *file)
 			ION_HEAP(ION_AUDIO_HEAP_ID));
 		if (IS_ERR_OR_NULL(handle)) {
 			MM_ERR("Unable to create allocate O/P buffers\n");
-					rc = -ENOMEM;
+			rc = -ENOMEM;
 			goto output_buff_alloc_error;
 		}
 		audio->output_buff_handle = handle;
@@ -1596,12 +1603,12 @@ static int audio_open(struct inode *inode, struct file *file)
 		if (rc) {
 			MM_ERR("could not get flags for the handle\n");
 			goto output_buff_get_flags_error;
-				}
+		}
 
 		audio->map_v_write = ion_map_kernel(client, handle, ionflag);
 		if (IS_ERR(audio->map_v_write)) {
 			MM_ERR("could not map write buffers\n");
-				rc = -ENOMEM;
+			rc = -ENOMEM;
 			goto output_buff_map_error;
 		}
 		audio->data = audio->map_v_write;

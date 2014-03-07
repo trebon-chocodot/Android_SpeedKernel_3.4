@@ -20,14 +20,6 @@
 #include <asm-generic/gpio.h>
 #include <mach/irqs.h>
 
-#if defined(CONFIG_MACH_TREBON)
-#include <mach/gpio_trebon.h>
-#elif defined(CONFIG_MACH_GEIM)
-#include <mach/gpio_geim.h>
-#else
-#include <mach/gpio_jena.h>
-#endif
-
 #define FIRST_BOARD_GPIO	NR_GPIO_IRQS
 
 static inline int gpio_get_value(unsigned gpio)
