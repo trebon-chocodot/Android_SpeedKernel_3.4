@@ -19,7 +19,7 @@
 #include <linux/delay.h>
 #include <linux/module.h>
 #include <linux/lcd.h>
-#include <mach/gpio.h>
+#include <linux/gpio.h>
 #include <mach/pmic.h>
 #include <linux/regulator/consumer.h>
 #include "msm_fb.h"
@@ -626,11 +626,11 @@ static void trebon_disp_on(void)
 		if (lcd_device_id == LCD_DEVICE_SMD) {
 			spi_cmds_tx(display_on_SMD_cmds,
 			ARRAY_SIZE(display_on_SMD_cmds));
-			DPRINT("display on cmd : completed\nLCD_DEVICE is SMD");
+			DPRINT("display on cmd : completed\nLCD_DEVICE is SMD\n");
 		} else {
 			spi_cmds_tx(display_on_cmds, ARRAY_SIZE(display_on_cmds));
 			msleep(30);
-			DPRINT("display on cmd : completed\nLCD_DEVICE is not SMD");
+			DPRINT("display on cmd : completed\nLCD_DEVICE is not SMD\n");
 			disp_state.display_on = TRUE;
 		}
 	}
@@ -968,7 +968,7 @@ static struct platform_device this_device = {
 #define LCDC_PCLK	((LCDC_FB_XRES + LCDC_HBP + LCDC_HPW + LCDC_HFP) \
 			* (LCDC_FB_YRES + LCDC_VBP + LCDC_VPW + LCDC_VFP) * 60)
 #endif
-static int __devinit lcdc_trebon_panel_init(void)
+static int __init lcdc_trebon_panel_init(void)
 {
 	int ret;
 	struct msm_panel_info *pinfo;
