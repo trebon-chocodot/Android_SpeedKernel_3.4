@@ -2163,12 +2163,13 @@ CONFIG_MSM_CAMERA_LEGACY=y
 # Camera Sensor Selection
 #
 # CONFIG_MT9T013 is not set
-CONFIG_MT9V113=y
+
 # CONFIG_MT9D112 is not set
 # CONFIG_IMX074 is not set
 # CONFIG_OV5640 is not set
 # CONFIG_OV5647 is not set
-CONFIG_SR300PC20=y
+CONFIG_MT9V113=y
+# CONFIG_SR300PC20 is not set
 # CONFIG_WEBCAM_OV7692_QRD is not set
 # CONFIG_MT9M114 is not set
 # CONFIG_WEBCAM_OV9726 is not set
