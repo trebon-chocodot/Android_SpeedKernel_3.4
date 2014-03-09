@@ -176,7 +176,7 @@ obj-$(CONFIG_FB_MSM_LCDC_TRULY_HVGA_IPS3P2335) += lcdc_truly_ips3p2335.o
 ##################################
 # Lcd driver for Samsung Project #
 ##################################
-obj-$(CONFIG_FB_MSM_LCDC_TREBON_HVGA) += lcdc_trebon.o lcdc_auo_hvga.o lcdc_backlight_ic.o
+obj-$(CONFIG_FB_MSM_LCDC_TREBON_HVGA) += lcdc_trebon.o lcdc_backlight_ic.o
 obj-$(CONFIG_FB_MSM_LCDC_JENA_HVGA) += lcdc_jena.o lcdc_backlight_ic.o
 
 
