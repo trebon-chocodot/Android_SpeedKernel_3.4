@@ -257,7 +257,7 @@ else
 obj-$(CONFIG_MACH_JENA) += board-jena.o msm_vibrator_samsung.o
 obj-$(CONFIG_MACH_TREBON) += board-trebon.o msm_vibrator_samsung.o
 obj-$(CONFIG_ARCH_MSM8625) += msm_smem_iface.o devices-msm7x27a.o clock-pcom-lookup.o mpm-8625.o
-ifndef CONFIG_MACH_TREBON
+ifndef CONFIG_MACH_JENA
 obj-$(CONFIG_MACH_MSM8625_RUMI3) += board-msm7x27a.o
 obj-$(CONFIG_MACH_MSM8625_SURF) +=  board-msm7x27a.o board-7627a-all.o
 obj-$(CONFIG_MACH_MSM8625_EVB) +=  board-qrd7627a.o board-7627a-all.o
