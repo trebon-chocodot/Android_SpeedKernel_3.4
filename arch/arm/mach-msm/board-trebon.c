@@ -44,7 +44,7 @@
 #include <linux/power_supply.h>
 #include <linux/regulator/consumer.h>
 #include <mach/rpc_pmapp.h>
-#include <mach/msm_battery_trebon.h>
+#include <mach/msm_battery.h>
 #include <linux/smsc911x.h>
 #include <linux/msm_adc.h>
 #include <linux/ion.h>
@@ -120,14 +120,6 @@ static int wlan_setup_ldo_33v(int input_flag, int on);
 
 #define GPIO_JACK_S_35	48
 #define GPIO_SEND_END	92
-
-#ifdef CONFIG_ION_MSM
-#define MSM_ION_HEAP_NUM 4
-static struct platform_device ion_dev;
-static int msm_ion_camera_size;
-static int msm_ion_audio_size;
-static int msm_ion_sf_size;
-#endif
 
 static struct sec_jack_zone jack_zones[] = {
 	[0] = {
@@ -1385,7 +1377,10 @@ static struct platform_device touch_i2c_gpio_device = {
 /* I2C 2 */
 static struct i2c_board_info touch_i2c_devices[] = {
 	{
-		I2C_BOARD_INFO("sec_touch", 0x48),
+		I2C_BOARD_INFO("zinitix_isp", 0x50),
+	},
+	{
+		I2C_BOARD_INFO("sec_touchscreen", 0x20),
 	        .irq = MSM_GPIO_TO_INT( GPIO_TOUCH_IRQ ),
 	},
 };
@@ -2690,10 +2685,6 @@ static struct platform_device lcdc_trebon_panel_device = {
 	.name   = "lcdc_trebon_hvga",
 	.num_resources  = ARRAY_SIZE(lcdc_trebon_resources),
 	.resource       = lcdc_trebon_resources,
-#elif defined(CONFIG_FB_MSM_LCDC_JENA_HVGA)
-	.name   = "lcdc_trebon_hvga",
-	.num_resources  = ARRAY_SIZE(lcdc_trebon_resources),
-	.resource       = lcdc_trebon_resources,
 #else
 	.name   = "lcdc_s6d16a0x_hvga",
 #endif
@@ -2703,7 +2694,7 @@ static struct platform_device lcdc_trebon_panel_device = {
 	}
 };
 
-#ifdef CONFIG_TOUCHSCREEN_ZINITIX_A
+#ifdef CONFIG_TOUCHSCREEN_ZINITIX_TREBON
 static void tsp_power_on(void)
 {
 	int rc = 0;
@@ -2762,11 +2753,7 @@ static int msm_fb_detect_panel(const char *name)
 			ret = 0;
 		else
 			ret = -ENODEV;
-#elif defined(CONFIG_FB_MSM_LCDC_JENA_HVGA)
-		if (!strcmp(name, "lcdc_trebon_hvga"))
-			ret = 0;
-		else
-			ret = -ENODEV;
+#else
 #endif
     return ret;
 }
@@ -3126,6 +3113,7 @@ static uint32_t camera_off_gpio_table[] = {
 static uint32_t camera_on_gpio_table[] = {
 
 #ifdef CONFIG_MACH_JENA
+#if (CONFIG_MACH_TREBON_HWREV == 0x0)
 	GPIO_CFG(15, 1, GPIO_CFG_OUTPUT, GPIO_CFG_PULL_DOWN, GPIO_CFG_8MA),
 	GPIO_CFG(96, 0, GPIO_CFG_OUTPUT, GPIO_CFG_PULL_DOWN, GPIO_CFG_2MA),
 	GPIO_CFG(18, 0, GPIO_CFG_OUTPUT, GPIO_CFG_PULL_DOWN, GPIO_CFG_2MA),  //cam_stby
@@ -3306,60 +3294,6 @@ static struct platform_device msm_camera_sensor_imx072 = {
 	},
 };
 #endif
-#ifdef CONFIG_S5K5CCAF
-static struct msm_camera_sensor_platform_info s5k5ccaf_sensor_7627a_info = {
-	.mount_angle = 0
-};
-
-static struct msm_camera_sensor_flash_data flash_s5k5ccaf = {
-	.flash_type             = MSM_CAMERA_FLASH_NONE,
-};
-
-static struct msm_camera_sensor_info msm_camera_sensor_s5k5ccaf_data = {
-	.sensor_name    = "s5k5ccaf",
-	.sensor_reset_enable = 0,
-	.vcm_enable             = 0,
-	.pdata                  = &msm_camera_device_data_rear,
-	.flash_data             = &flash_s5k5ccaf,
-	.sensor_platform_info   = &s5k5ccaf_sensor_7627a_info,
-	.csi_if                 = 1 // 0: Parallel interface , 1: MIPI interface
-};
-
-static struct platform_device msm_camera_sensor_s5k5ccaf = {
-	.name   = "msm_camera_s5k5ccaf",
-	.dev    = {
-		.platform_data = &msm_camera_sensor_s5k5ccaf_data,
-	},
-};
-#endif
-
-#ifdef CONFIG_SR300PC20
-static struct msm_camera_sensor_platform_info s5k5ccaf_sensor_7627a_info = {
-	.mount_angle = 0
-};
-
-static struct msm_camera_sensor_flash_data flash_s5k5ccaf = {
-	.flash_type             = MSM_CAMERA_FLASH_NONE,
-};
-
-static struct msm_camera_sensor_info msm_camera_sensor_s5k5ccaf_data = {
-	.sensor_name    = "s5k5ccaf",
-	.sensor_reset_enable = 0,
-	.vcm_enable             = 0,
-	.pdata                  = &msm_camera_device_data_rear,
-	.flash_data             = &flash_s5k5ccaf,
-	.sensor_platform_info   = &s5k5ccaf_sensor_7627a_info,
-	.csi_if                 = 1 // 0: Parallel interface , 1: MIPI interface
-};
-
-static struct platform_device msm_camera_sensor_s5k5ccaf = {
-	.name   = "msm_camera_s5k5ccaf",
-	.dev    = {
-	.platform_data = &msm_camera_sensor_s5k5ccaf_data,
-	},
-};
-#endif
-
 
 #ifdef CONFIG_WEBCAM_OV9726
 static struct msm_camera_sensor_platform_info ov9726_sensor_7627a_info = {
@@ -3388,33 +3322,6 @@ static struct platform_device msm_camera_sensor_ov9726 = {
 	.name   = "msm_camera_ov9726",
 	.dev    = {
 		.platform_data = &msm_camera_sensor_ov9726_data,
-	},
-};
-#endif
-#ifdef CONFIG_SR300PC20
-static struct msm_camera_sensor_platform_info sr300pc20_sensor_7627a_info = {
-	.mount_angle = 0
-};
-
-static struct msm_camera_sensor_flash_data flash_sr300pc20 = {
-	.flash_type             = MSM_CAMERA_FLASH_NONE,
-};
-
-static struct msm_camera_sensor_info msm_camera_sensor_sr300pc20_data = {
-	.sensor_name    = "sr300pc20",
-	.sensor_reset_enable = 0,
-	.vcm_enable             = 0,
-	.pdata                  = &msm_camera_device_data_rear,
-	.flash_data             = &flash_sr300pc20,
-	.sensor_platform_info = &sr300pc20_sensor_7627a_info,
-	.csi_if                 = 1
-
-};
-
-static struct platform_device msm_camera_sensor_sr300pc20 = {
-	.name   = "msm_camera_sr300pc20",
-	.dev    = {
-		.platform_data = &msm_camera_sensor_sr300pc20_data,
 	},
 };
 #endif
@@ -3522,16 +3429,6 @@ static struct i2c_board_info i2c_camera_devices[] = {
 		I2C_BOARD_INFO("mt9v113", 0x7A >> 1),
 	},
 	#endif
-	#ifdef CONFIG_S5K5CCAF // yjh
-	{
-		I2C_BOARD_INFO("s5k5ccaf", 0x40>>1),
-	},
-	#endif // yjh_end
-	#ifdef CONFIG_SR300PC20
-	{
-		I2C_BOARD_INFO("sr300pc20", 0x40>>1),
-	},
-	#endif
     #ifdef CONFIG_S5K4ECGX
 	{
 		I2C_BOARD_INFO("s5k4ecgx", 0xAC >> 1),
@@ -3621,12 +3518,6 @@ static struct platform_device *msm7627a_surf_ffa_devices[] __initdata = {
 #endif
 #ifdef CONFIG_WEBCAM_OV9726
 	&msm_camera_sensor_ov9726,
-#endif
-#ifdef CONFIG_S5K5CCAF
-	&msm_camera_sensor_s5k5ccaf,
-#endif
-#ifdef CONFIG_SR300PC20
-	&msm_camera_sensor_sr300pc20,
 #endif
 #ifdef CONFIG_S5K4ECGX
 	&msm_camera_sensor_s5k4ecgx,
@@ -3729,41 +3620,41 @@ static struct ion_co_heap_pdata co_ion_pdata = {
  * Don't swap the order unless you know what you are doing!
  */
 static struct ion_platform_data ion_pdata = {
-	.nr = MSM_ION_HEAP_NUM,
-	.has_outer_cache = 1,
-	.heaps = {
-		{
-			.id	= ION_SYSTEM_HEAP_ID,
-			.type	= ION_HEAP_TYPE_SYSTEM,
-			.name	= ION_VMALLOC_HEAP_NAME,
-		},
+        .nr = MSM_ION_HEAP_NUM,
+        .has_outer_cache = 1,
+        .heaps = {
+                {
+                        .id        = ION_SYSTEM_HEAP_ID,
+                        .type        = ION_HEAP_TYPE_SYSTEM,
+                        .name        = ION_VMALLOC_HEAP_NAME,
+                },
 #ifdef CONFIG_MSM_MULTIMEDIA_USE_ION
-		/* PMEM_ADSP = CAMERA */
-		{
-			.id	= ION_CAMERA_HEAP_ID,
-			.type	= ION_HEAP_TYPE_CARVEOUT,
-			.name	= ION_CAMERA_HEAP_NAME,
-			.memory_type = ION_EBI_TYPE,
-			.extra_data = (void *)&co_ion_pdata,
-		},
-		/* PMEM_AUDIO */
-		{
-			.id	= ION_AUDIO_HEAP_ID,
-			.type	= ION_HEAP_TYPE_CARVEOUT,
-			.name	= ION_AUDIO_HEAP_NAME,
-			.memory_type = ION_EBI_TYPE,
-			.extra_data = (void *)&co_ion_pdata,
-		},
-		/* PMEM_MDP = SF */
-		{
-			.id	= ION_SF_HEAP_ID,
-			.type	= ION_HEAP_TYPE_CARVEOUT,
-			.name	= ION_SF_HEAP_NAME,
-			.memory_type = ION_EBI_TYPE,
-			.extra_data = (void *)&co_ion_pdata,
-		},
+                /* PMEM_ADSP = CAMERA */
+                {
+                        .id        = ION_CAMERA_HEAP_ID,
+                        .type        = ION_HEAP_TYPE_CARVEOUT,
+                        .name        = ION_CAMERA_HEAP_NAME,
+                        .memory_type = ION_EBI_TYPE,
+                        .extra_data = (void *)&co_ion_pdata,
+                },
+                /* PMEM_AUDIO */
+                {
+                        .id        = ION_AUDIO_HEAP_ID,
+                        .type        = ION_HEAP_TYPE_CARVEOUT,
+                        .name        = ION_AUDIO_HEAP_NAME,
+                        .memory_type = ION_EBI_TYPE,
+                        .extra_data = (void *)&co_ion_pdata,
+                },
+                /* PMEM_MDP = SF */
+                {
+                        .id        = ION_SF_HEAP_ID,
+                        .type        = ION_HEAP_TYPE_CARVEOUT,
+                        .name        = ION_SF_HEAP_NAME,
+                        .memory_type = ION_EBI_TYPE,
+                        .extra_data = (void *)&co_ion_pdata,
+                },
 #endif
-	}
+        }
 };
 
 static struct platform_device ion_dev = {
@@ -3785,11 +3676,15 @@ static struct memtype_reserve msm7x27a_reserve_table[] __initdata = {
 };
 
 #ifdef CONFIG_ANDROID_PMEM
-#ifndef CONFIG_MSM_MULTIMEDIA_USE_ION
+#if !defined(CONFIG_MSM_MULTIMEDIA_USE_ION) || defined(CONFIG_MSM_ADSP_USE_PMEM)
 static struct android_pmem_platform_data *pmem_pdata_array[] __initdata = {
+#ifdef CONFIG_MSM_ADSP_USE_PMEM
 		&android_pmem_adsp_pdata,
+#endif
+#ifndef CONFIG_MSM_MULTIMEDIA_USE_ION
 		&android_pmem_audio_pdata,
 		&android_pmem_pdata,
+#endif
 };
 #endif
 #endif
@@ -3797,8 +3692,10 @@ static struct android_pmem_platform_data *pmem_pdata_array[] __initdata = {
 static void __init size_pmem_devices(void)
 {
 #ifdef CONFIG_ANDROID_PMEM
-#ifndef CONFIG_MSM_MULTIMEDIA_USE_ION
+#ifdef CONFIG_MSM_ADSP_USE_PMEM
 	android_pmem_adsp_pdata.size = pmem_adsp_size;
+#endif
+#ifndef CONFIG_MSM_MULTIMEDIA_USE_ION
 	android_pmem_pdata.size = pmem_mdp_size;
 	android_pmem_audio_pdata.size = pmem_audio_size;
 
@@ -3807,7 +3704,7 @@ static void __init size_pmem_devices(void)
 }
 
 #ifdef CONFIG_ANDROID_PMEM
-#ifndef CONFIG_MSM_MULTIMEDIA_USE_ION
+#if !defined(CONFIG_MSM_MULTIMEDIA_USE_ION) || defined(CONFIG_MSM_ADSP_USE_PMEM)
 static void __init reserve_memory_for(struct android_pmem_platform_data *p)
 {
 	msm7x27a_reserve_table[p->memory_type].size += p->size;
@@ -3818,7 +3715,7 @@ static void __init reserve_memory_for(struct android_pmem_platform_data *p)
 static void __init reserve_pmem_memory(void)
 {
 #ifdef CONFIG_ANDROID_PMEM
-#ifndef CONFIG_MSM_MULTIMEDIA_USE_ION
+#if !defined(CONFIG_MSM_MULTIMEDIA_USE_ION) || defined(CONFIG_MSM_ADSP_USE_PMEM)
 	unsigned int i;
 	for (i = 0; i < ARRAY_SIZE(pmem_pdata_array); ++i)
 		reserve_memory_for(pmem_pdata_array[i]);
@@ -3843,6 +3740,7 @@ static void __init reserve_ion_memory(void)
 	msm7x27a_reserve_table[MEMTYPE_EBI1].size += msm_ion_camera_size;
 	msm7x27a_reserve_table[MEMTYPE_EBI1].size += msm_ion_audio_size;
 	msm7x27a_reserve_table[MEMTYPE_EBI1].size += msm_ion_sf_size;
+	msm7x27a_reserve_table[MEMTYPE_EBI1].size += 1;
 #endif
 }
 
@@ -4496,7 +4394,7 @@ static void __init msm7x2x_init(void)
 	bt_power_init();
 #endif
 
-#ifdef CONFIG_TOUCHSCREEN_ZINITIX_A
+#ifdef CONFIG_TOUCHSCREEN_ZINITIX_TREBON
 	tsp_power_on();
 #endif
 
