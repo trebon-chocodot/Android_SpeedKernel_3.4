@@ -2742,6 +2742,10 @@ static struct resource msm_fb_resources[] = {
 static int msm_fb_detect_panel(const char *name)
 {
 	int ret = -EPERM;
+	char panel[2][21] = {"lcdc_trebon_smd_hvga", "lcdc_trebon_auo_hvga"};
+	int lcd_id = -1;
+	lcd_id = update_panel_name("GET");
+	printk(KERN_INFO "LCD %s selected\n", panel[lcd_id - 1]);
 
 #if defined(CONFIG_FB_MSM_LCDC_S6D16A0X_HVGA)
 		if (!strcmp(name, "lcdc_s6d16a0x_hvga"))
@@ -2750,6 +2754,7 @@ static int msm_fb_detect_panel(const char *name)
 			ret = -ENODEV;
 #elif defined(CONFIG_FB_MSM_LCDC_TREBON_HVGA)
 		if (!strcmp(name, "lcdc_trebon_hvga"))
+					sizeof(panel[lcd_id - 1])))
 			ret = 0;
 		else
 			ret = -ENODEV;
