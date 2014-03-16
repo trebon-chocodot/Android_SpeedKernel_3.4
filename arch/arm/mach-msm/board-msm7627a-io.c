@@ -879,13 +879,13 @@ void __init msm7627a_add_io_devices(void)
 				atmel_ts_i2c_info,
 				ARRAY_SIZE(atmel_ts_i2c_info));
 	/* keypad */
-	platform_device_register(&kp_pdev);
+	platform_device_register;
 
 	/* headset */
 	platform_device_register(&hs_pdev);
 
 	/* LED: configure it as a pdm function */
-	if (gpio_tlmm_config(GPIO_CFG(LED_GPIO_PDM, 3,
+	if (gpio_tlmm_config(GPIO_CFG, 3,
 				GPIO_CFG_OUTPUT, GPIO_CFG_NO_PULL,
 				GPIO_CFG_8MA), GPIO_CFG_ENABLE))
 		pr_err("%s: gpio_tlmm_config for %d failed\n",

@@ -795,29 +795,16 @@ static struct ion_co_heap_pdata co_ion_pdata = {
 	.adjacent_mem_id = INVALID_HEAP_ID,
 	.align = PAGE_SIZE,
 };
-
-static struct ion_co_heap_pdata co_mm_ion_pdata = {
-	.adjacent_mem_id = INVALID_HEAP_ID,
-	.align = PAGE_SIZE,
-};
-
-static u64 msm_dmamask = DMA_BIT_MASK(32);
-
-static struct platform_device ion_cma_device = {
-	.name = "ion-cma-device",
-	.id = -1,
-	.dev = {
-		.dma_mask = &msm_dmamask,
-		.coherent_dma_mask = DMA_BIT_MASK(32),
-	}
-};
 #endif
 
 /**
  * These heaps are listed in the order they will be allocated.
  * Don't swap the order unless you know what you are doing!
  */
-struct ion_platform_heap msm7x27a_heaps[] = {
+static struct ion_platform_data ion_pdata = {
+	.nr = MSM_ION_HEAP_NUM,
+	.has_outer_cache = 1,
+	.heaps = {
 		{
 			.id	= ION_SYSTEM_HEAP_ID,
 			.type	= ION_HEAP_TYPE_SYSTEM,
@@ -830,8 +817,7 @@ struct ion_platform_heap msm7x27a_heaps[] = {
 			.type	= CAMERA_HEAP_TYPE,
 			.name	= ION_CAMERA_HEAP_NAME,
 			.memory_type = ION_EBI_TYPE,
-			.extra_data = (void *)&co_mm_ion_pdata,
-			.priv	= (void *)&ion_cma_device.dev,
+			.extra_data = (void *)&co_ion_pdata,
 		},
 		/* AUDIO HEAP 1*/
 		{
@@ -849,23 +835,8 @@ struct ion_platform_heap msm7x27a_heaps[] = {
 			.memory_type = ION_EBI_TYPE,
 			.extra_data = (void *)&co_ion_pdata,
 		},
-		/* AUDIO HEAP 2*/
-		{
-			.id	= ION_AUDIO_HEAP_BL_ID,
-			.type	= ION_HEAP_TYPE_CARVEOUT,
-			.name	= ION_AUDIO_BL_HEAP_NAME,
-			.memory_type = ION_EBI_TYPE,
-			.extra_data = (void *)&co_ion_pdata,
-			.base = BOOTLOADER_BASE_ADDR,
-		},
-
 #endif
-};
-
-static struct ion_platform_data ion_pdata = {
-	.nr = MSM_ION_HEAP_NUM,
-	.has_outer_cache = 1,
-	.heaps = msm7x27a_heaps,
+	}
 };
 
 static struct platform_device ion_dev = {
@@ -885,16 +856,6 @@ static struct memtype_reserve msm7x27a_reserve_table[] __initdata = {
 		.flags	=	MEMTYPE_FLAGS_1M_ALIGN,
 	},
 };
-
-#ifdef CONFIG_ANDROID_PMEM
-#ifndef CONFIG_MSM_MULTIMEDIA_USE_ION
-static struct android_pmem_platform_data *pmem_pdata_array[] __initdata = {
-		&android_pmem_adsp_pdata,
-		&android_pmem_audio_pdata,
-		&android_pmem_pdata,
-};
-#endif
-#endif
 
 static void __init size_pmem_devices(void)
 {
@@ -933,9 +894,8 @@ static void __init size_ion_devices(void)
 {
 #ifdef CONFIG_MSM_MULTIMEDIA_USE_ION
 	ion_pdata.heaps[1].size = msm_ion_camera_size;
-	ion_pdata.heaps[2].size = PMEM_KERNEL_EBI1_SIZE;
+	ion_pdata.heaps[2].size = msm_ion_audio_size;
 	ion_pdata.heaps[3].size = msm_ion_sf_size;
-	ion_pdata.heaps[4].size = msm_ion_audio_size;
 #endif
 }
 
