@@ -4539,7 +4539,7 @@ static void __init msm7x2x_init(void)
 	bt_power_init();
 #endif
 
-#ifdef CONFIG_TOUCHSCREEN_ZINITIX_A
+#ifdef CONFIG_TOUCHSCREEN_ZINITIX_TREBON
 	tsp_power_on();
 #endif
 
