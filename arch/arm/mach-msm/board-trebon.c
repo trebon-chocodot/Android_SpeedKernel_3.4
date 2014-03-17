@@ -1272,7 +1272,90 @@ static void config_gpio_table_for_nfc(void)
 #ifdef CONFIG_PROXIMITY_SENSOR
 static int gp2a_power(bool on)
 {
-	gpio_tlmm_config(GPIO_CFG( 29, 0, GPIO_CFG_INPUT, GPIO_CFG_PULL_UP, GPIO_CFG_2MA),GPIO_CFG_ENABLE);
+/*
+	struct regulator *regulator;
+
+	ldo15_init_data.constraints.state_mem.enabled = on;
+	ldo15_init_data.constraints.state_mem.disabled = !on;
+
+	if (on) {
+		regulator = regulator_get(NULL, "vled");
+		if (IS_ERR(regulator))
+			return 0;
+		regulator_enable(regulator);
+		regulator_put(regulator);
+	} else {
+		regulator = regulator_get(NULL, "vled");
+		if (IS_ERR(regulator))
+			return 0;
+		if (regulator_is_enabled(regulator))
+			regulator_force_disable(regulator);
+		regulator_put(regulator);
+	}
+*/
+
+#if defined(CONFIG_MACH_TREBON)
+	int rc = 0;
+	if (board_hw_revision >= 0x06) {
+		if (proximity_init == false) {
+			pr_info("[GP2A] board hw revision %d\n",
+				board_hw_revision);
+			struct pm8xxx_gpio_rpc_cfg gpio_cfg = {
+				.gpio  = PMIC_GPIO_11,
+				.mode  = OUTPUT_ON,
+				.src_pull = PULL_UP_1_5uA,
+				.volt_src = PMIC_GPIO_VIN2,
+				.buf_config = CONFIG_CMOS,
+			};
+
+			rc = pmic_gpio_config(&gpio_cfg);
+			if (rc < 0) {
+				pr_err("%s pmic gpio config failed %d ",
+					__func__,
+					rc);
+			}
+			pmic_gpio_direction_output(PMIC_GPIO_11);
+			proximity_init = true;
+			gpio_tlmm_config(
+				GPIO_CFG(29, 0,
+					GPIO_CFG_INPUT,
+					GPIO_CFG_PULL_UP,
+					GPIO_CFG_2MA),
+				GPIO_CFG_ENABLE);
+		}
+
+		if (on) {
+			pr_err("%s pmic gpio set to 1 ",
+				__func__);
+			rc = pmic_gpio_set_value(PMIC_GPIO_11, 1);
+			if (rc < 0)
+				pr_err("%s pmic gpio set 1 error ",
+					__func__);
+		} else {
+			pr_err("%s pmic gpio set to 0 ",
+				__func__);
+			rc = pmic_gpio_set_value(PMIC_GPIO_11, 0);
+			if (rc < 0)
+				pr_err("%s pmic gpio set 0 error ",
+					__func__);
+		}
+	} else {
+		gpio_tlmm_config(
+			GPIO_CFG(29, 0,
+				GPIO_CFG_INPUT,
+				GPIO_CFG_PULL_UP,
+				GPIO_CFG_2MA),
+			GPIO_CFG_ENABLE);
+	}
+#else
+	gpio_tlmm_config(
+		GPIO_CFG(29, 0,
+			GPIO_CFG_INPUT,
+			GPIO_CFG_PULL_UP,
+			GPIO_CFG_2MA),
+		GPIO_CFG_ENABLE);
+#endif
+
 	return 0;
 }
 
@@ -2739,6 +2822,49 @@ static struct resource msm_fb_resources[] = {
 	}
 };
 
+/*
+* The function of "update_panel_name()" is working for support
+* different lcd panel more than two. The operation of this function
+* is that get the panel name from command line that is pass on from
+* bootloader and update lcd id.
+*/
+static int __init update_panel_name(char *panel_name)
+{
+	int i;
+	char *src = panel_name;
+	char panel[2][4] = {"SMD", "AUO"};
+	int panel_id[2] = {1, 2};
+	static int lcd_id = -1;
+
+	if (!strncmp(src, "GET", 3)) {
+		printk(KERN_INFO, "%s : Lcd name is %s\n",
+				__func__, panel[lcd_id - 1]);
+		return lcd_id;
+	} else {
+		for (i = 0; i < sizeof(panel) / sizeof(panel[0]); i++) {
+			if (!strncmp(src, panel[i], sizeof(panel[i])))
+				lcd_id = panel_id[i];
+		}
+
+		if (lcd_id == -1) {
+			printk(KERN_INFO, "%s : Fail to get lcd panel name"
+				" from bootloader\n", __func__);
+			lcd_id = panel_id[1];
+		} else {
+			printk(KERN_INFO, "%s : Success to get"
+				"lcd panel name(%s) from bootloader\n",
+				__func__, panel[lcd_id - 1]);
+		}
+	}
+
+	return 1;
+}
+__setup("panel_name=", update_panel_name);
+
+/*
+* The function of "msm_fb_detect_panel()" is working for search
+* one panel among panels using the string(variable of panel).
+*/
 static int msm_fb_detect_panel(const char *name)
 {
 	int ret = -EPERM;
@@ -2753,7 +2879,7 @@ static int msm_fb_detect_panel(const char *name)
 		else
 			ret = -ENODEV;
 #elif defined(CONFIG_FB_MSM_LCDC_TREBON_HVGA)
-		if (!strcmp(name, "lcdc_trebon_hvga"))
+		if (!strncmp(name, panel[lcd_id - 1],
 					sizeof(panel[lcd_id - 1])))
 			ret = 0;
 		else
@@ -3119,11 +3245,26 @@ static uint32_t camera_on_gpio_table[] = {
 
 #ifdef CONFIG_MACH_JENA
 #if (CONFIG_MACH_TREBON_HWREV == 0x0)
-	GPIO_CFG(15, 1, GPIO_CFG_OUTPUT, GPIO_CFG_PULL_DOWN, GPIO_CFG_8MA),
+	GPIO_CFG(15, 1, GPIO_CFG_OUTPUT, GPIO_CFG_PULL_DOWN, GPIO_CFG_2MA),
 	GPIO_CFG(96, 0, GPIO_CFG_OUTPUT, GPIO_CFG_PULL_DOWN, GPIO_CFG_2MA),
-	GPIO_CFG(18, 0, GPIO_CFG_OUTPUT, GPIO_CFG_PULL_DOWN, GPIO_CFG_2MA),  //cam_stby
-	GPIO_CFG(98, 0, GPIO_CFG_OUTPUT, GPIO_CFG_PULL_DOWN, GPIO_CFG_2MA),	//vt_cam_reset
-	GPIO_CFG(85, 0, GPIO_CFG_OUTPUT, GPIO_CFG_PULL_DOWN, GPIO_CFG_2MA),  //3//3m_cam_rst
+	GPIO_CFG(18, 0, GPIO_CFG_OUTPUT, GPIO_CFG_PULL_DOWN, GPIO_CFG_2MA),
+	GPIO_CFG(58, 0, GPIO_CFG_OUTPUT, GPIO_CFG_PULL_DOWN, GPIO_CFG_2MA),
+	GPIO_CFG(98, 0, GPIO_CFG_OUTPUT, GPIO_CFG_PULL_DOWN, GPIO_CFG_2MA),
+	GPIO_CFG(85, 0, GPIO_CFG_OUTPUT, GPIO_CFG_PULL_DOWN, GPIO_CFG_2MA),
+	GPIO_CFG(84, 0, GPIO_CFG_OUTPUT, GPIO_CFG_PULL_DOWN, GPIO_CFG_2MA),
+	GPIO_CFG(107, 0, GPIO_CFG_OUTPUT, GPIO_CFG_PULL_DOWN, GPIO_CFG_2MA),
+	GPIO_CFG(49, 0, GPIO_CFG_OUTPUT, GPIO_CFG_PULL_DOWN, GPIO_CFG_2MA),
+#else
+	GPIO_CFG(15, 1, GPIO_CFG_OUTPUT, GPIO_CFG_PULL_DOWN, GPIO_CFG_2MA),
+	GPIO_CFG(96, 0, GPIO_CFG_OUTPUT, GPIO_CFG_PULL_DOWN, GPIO_CFG_2MA),
+	GPIO_CFG(93, 0, GPIO_CFG_OUTPUT, GPIO_CFG_PULL_DOWN, GPIO_CFG_2MA),
+	GPIO_CFG(92, 0, GPIO_CFG_OUTPUT, GPIO_CFG_PULL_DOWN, GPIO_CFG_2MA),
+	GPIO_CFG(89, 0, GPIO_CFG_OUTPUT, GPIO_CFG_PULL_DOWN, GPIO_CFG_2MA),
+	GPIO_CFG(85, 0, GPIO_CFG_OUTPUT, GPIO_CFG_PULL_DOWN, GPIO_CFG_2MA),
+	GPIO_CFG(84, 0, GPIO_CFG_OUTPUT, GPIO_CFG_PULL_DOWN, GPIO_CFG_2MA),
+	GPIO_CFG(79, 0, GPIO_CFG_OUTPUT, GPIO_CFG_PULL_DOWN, GPIO_CFG_2MA),
+	GPIO_CFG(49, 0, GPIO_CFG_OUTPUT, GPIO_CFG_PULL_DOWN, GPIO_CFG_2MA),
+#endif
 #endif
 
 };
@@ -3625,41 +3766,41 @@ static struct ion_co_heap_pdata co_ion_pdata = {
  * Don't swap the order unless you know what you are doing!
  */
 static struct ion_platform_data ion_pdata = {
-        .nr = MSM_ION_HEAP_NUM,
-        .has_outer_cache = 1,
-        .heaps = {
-                {
-                        .id        = ION_SYSTEM_HEAP_ID,
-                        .type        = ION_HEAP_TYPE_SYSTEM,
-                        .name        = ION_VMALLOC_HEAP_NAME,
-                },
+	.nr = MSM_ION_HEAP_NUM,
+	.has_outer_cache = 1,
+	.heaps = {
+		{
+			.id	= ION_SYSTEM_HEAP_ID,
+			.type	= ION_HEAP_TYPE_SYSTEM,
+			.name	= ION_VMALLOC_HEAP_NAME,
+		},
 #ifdef CONFIG_MSM_MULTIMEDIA_USE_ION
-                /* PMEM_ADSP = CAMERA */
-                {
-                        .id        = ION_CAMERA_HEAP_ID,
-                        .type        = ION_HEAP_TYPE_CARVEOUT,
-                        .name        = ION_CAMERA_HEAP_NAME,
-                        .memory_type = ION_EBI_TYPE,
-                        .extra_data = (void *)&co_ion_pdata,
-                },
-                /* PMEM_AUDIO */
-                {
-                        .id        = ION_AUDIO_HEAP_ID,
-                        .type        = ION_HEAP_TYPE_CARVEOUT,
-                        .name        = ION_AUDIO_HEAP_NAME,
-                        .memory_type = ION_EBI_TYPE,
-                        .extra_data = (void *)&co_ion_pdata,
-                },
-                /* PMEM_MDP = SF */
-                {
-                        .id        = ION_SF_HEAP_ID,
-                        .type        = ION_HEAP_TYPE_CARVEOUT,
-                        .name        = ION_SF_HEAP_NAME,
-                        .memory_type = ION_EBI_TYPE,
-                        .extra_data = (void *)&co_ion_pdata,
-                },
+		/* PMEM_ADSP = CAMERA */
+		{
+			.id	= ION_CAMERA_HEAP_ID,
+			.type	= ION_HEAP_TYPE_CARVEOUT,
+			.name	= ION_CAMERA_HEAP_NAME,
+			.memory_type = ION_EBI_TYPE,
+			.extra_data = (void *)&co_ion_pdata,
+		},
+		/* PMEM_AUDIO */
+		{
+			.id	= ION_AUDIO_HEAP_ID,
+			.type	= ION_HEAP_TYPE_CARVEOUT,
+			.name	= ION_AUDIO_HEAP_NAME,
+			.memory_type = ION_EBI_TYPE,
+			.extra_data = (void *)&co_ion_pdata,
+		},
+		/* PMEM_MDP = SF */
+		{
+			.id	= ION_SF_HEAP_ID,
+			.type	= ION_HEAP_TYPE_CARVEOUT,
+			.name	= ION_SF_HEAP_NAME,
+			.memory_type = ION_EBI_TYPE,
+			.extra_data = (void *)&co_ion_pdata,
+		},
 #endif
-        }
+	}
 };
 
 static struct platform_device ion_dev = {
@@ -3745,7 +3886,6 @@ static void __init reserve_ion_memory(void)
 	msm7x27a_reserve_table[MEMTYPE_EBI1].size += msm_ion_camera_size;
 	msm7x27a_reserve_table[MEMTYPE_EBI1].size += msm_ion_audio_size;
 	msm7x27a_reserve_table[MEMTYPE_EBI1].size += msm_ion_sf_size;
-	msm7x27a_reserve_table[MEMTYPE_EBI1].size += 1;
 #endif
 }
 
@@ -4399,7 +4539,7 @@ static void __init msm7x2x_init(void)
 	bt_power_init();
 #endif
 
-#ifdef CONFIG_TOUCHSCREEN_ZINITIX_TREBON
+#ifdef CONFIG_TOUCHSCREEN_ZINITIX_A
 	tsp_power_on();
 #endif
 
