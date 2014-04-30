@@ -415,8 +415,8 @@ config MSM_ADM3
 
 menu "MSM Board Selection"
 
-config MACH_JENA
-        bool "MSM7627A jena platform"
+config MACH_TREBON
+        bool "MSM7627A trebon platform"
 		depends on ARCH_MSM7X27A
         default n
 
@@ -918,12 +918,6 @@ config MACH_TREBON_HWREV
         hex "MSM7x27A TREBON HWREV"
 		depends on MACH_TREBON
 		default "0x2"
-		help
-          Qualcomm TREBON H/W revision.
-config MACH_JENA_HWREV
-        hex "MSM7x27A JENA HWREV"
-		depends on MACH_JENA
-		default "0x0"
 
 config BQ27425_FUEL_GAUGE
 	bool "CONFIG_BQ27425_FUEL_GAUGE"
@@ -2347,13 +2341,6 @@ config MSM_L2_SPM
 	  Enabling this driver allows configuring L2 SPM for low power modes
 	  on supported chipsets.
 
-config MACH_TREBON
-        depends on ARCH_MSM7X27A
-        depends on !MSM_STACKED_MEMORY
-        default n
-        bool "MSM7x27A TREBON"
-        help
-          Support for the Qualcomm TREBON 
 config MSM_MULTIMEDIA_USE_ION
 	bool "Multimedia suport using Ion"
 	depends on ION_MSM
